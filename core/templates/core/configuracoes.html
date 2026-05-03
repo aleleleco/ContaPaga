@@ -1,0 +1,271 @@
+{% extends 'core/base.html' %}
+
+{% block title %}Configurações - ContaPaga{% endblock %}
+{% block header_title %}Configurações do Sistema{% endblock %}
+
+{% block extra_css %}
+<style>
+    .config-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+        gap: 2rem;
+    }
+    .config-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.5rem;
+    }
+    .item-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+    .item-card {
+        padding: 1rem 1.25rem;
+        background: var(--bg-main);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        transition: all 0.2s;
+    }
+    .item-card:hover {
+        border-color: var(--primary);
+        background: white;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="config-grid">
+    <!-- AGENTES PAGADORES -->
+    <div class="card">
+        <div class="config-header">
+            <h2 style="font-size: 1.25rem; font-weight: 700;">Agentes Pagadores</h2>
+            <a href="#modal-novo-agente" class="btn btn-primary btn-sm" style="padding: 0.4rem 0.8rem; font-size: 0.875rem;">
+                <i data-lucide="plus"></i> Novo
+            </a>
+        </div>
+        <p style="color: var(--text-muted); font-size: 0.875rem; margin-bottom: 1.5rem;">Pessoas responsáveis pelos pagamentos no sistema.</p>
+        
+        <div class="item-list">
+            {% for a in agentes %}
+            <div class="item-card">
+                <div>
+                    <div style="font-weight: 600; color: var(--text-main);">{{ a.nome }}</div>
+                    <div style="font-size: 0.75rem; color: var(--text-muted);">Salário: R$ {{ a.salario|floatformat:2 }} | {{ a.usos }} lançamentos</div>
+                </div>
+                <div style="display: flex; gap: 0.75rem; align-items: center;">
+                    <a href="javascript:void(0)" onclick="openEditAgenteModal('{{ a.pk }}', '{{ a.nome }}', '{{ a.salario }}', '{{ a.info_bancaria|default:'' }}')" style="color: var(--primary);" title="Editar Agente">
+                        <i data-lucide="edit-3" style="width: 18px;"></i>
+                    </a>
+                    {% if a.usos == 0 %}
+                    <a href="{% url 'core:agente_delete' a.pk %}" style="color: var(--danger);" title="Excluir Agente" onclick="return confirm('Excluir este agente?')">
+                        <i data-lucide="trash-2" style="width: 18px;"></i>
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- CATEGORIAS -->
+    <div class="card">
+        <div class="config-header">
+            <h2 style="font-size: 1.25rem; font-weight: 700;">Categorias</h2>
+            <a href="#modal-nova-categoria" class="btn btn-primary btn-sm" style="padding: 0.4rem 0.8rem; font-size: 0.875rem;">
+                <i data-lucide="plus"></i> Nova
+            </a>
+        </div>
+        <p style="color: var(--text-muted); font-size: 0.875rem; margin-bottom: 1.5rem;">Gerencie as categorias para organizar seus lançamentos.</p>
+        
+        <div class="item-list">
+            {% for cat in categorias %}
+            <div class="item-card">
+                <div>
+                    <div style="font-weight: 600; color: var(--text-main);">{{ cat.nome }}</div>
+                    <div style="font-size: 0.75rem; color: var(--text-muted);">{{ cat.usos }} vínculos encontrados</div>
+                </div>
+                {% if cat.usos == 0 %}
+                <a href="{% url 'core:categoria_delete' cat.pk %}" style="color: var(--danger);" title="Excluir Categoria" onclick="return confirm('Excluir esta categoria?')">
+                    <i data-lucide="trash-2" style="width: 18px;"></i>
+                </a>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- CONTAS -->
+    <div class="card">
+        <div class="config-header">
+            <h2 style="font-size: 1.25rem; font-weight: 700;">Contas Cadastradas</h2>
+            <a href="#modal-conta" class="btn btn-primary btn-sm" style="padding: 0.4rem 0.8rem; font-size: 0.875rem;">
+                <i data-lucide="plus"></i> Nova
+            </a>
+        </div>
+        <p style="color: var(--text-muted); font-size: 0.875rem; margin-bottom: 1.5rem;">Contas fixas ou esporádicas que geram lançamentos.</p>
+        
+        <div class="item-list">
+            {% for c in contas %}
+            <div class="item-card">
+                <div>
+                    <div style="font-weight: 600; color: var(--text-main);">{{ c.nome }}</div>
+                    <div style="display: flex; gap: 0.5rem; align-items: center; margin-top: 0.25rem;">
+                        <span class="badge" style="background-color: var(--bg-main); color: var(--text-muted); font-size: 0.65rem; border: 1px solid var(--border);">
+                            {{ c.get_tipo_display }}
+                        </span>
+                        <span style="font-size: 0.75rem; color: var(--text-muted);">{{ c.usos }} lançamentos</span>
+                    </div>
+                </div>
+                <div style="display: flex; gap: 0.75rem; align-items: center;">
+                    <a href="javascript:void(0)" onclick="openEditContaModal('{{ c.pk }}', '{{ c.nome }}', '{{ c.categoria.id }}', '{{ c.tipo }}', '{{ c.valor_padrao }}', '{{ c.dia_vencimento }}', '{{ c.observacoes|default:'' }}')" style="color: var(--primary);" title="Editar Conta">
+                        <i data-lucide="edit-3" style="width: 18px;"></i>
+                    </a>
+                    {% if c.usos == 0 %}
+                    <a href="{% url 'core:conta_delete' c.pk %}" style="color: var(--danger);" title="Excluir Conta" onclick="return confirm('Excluir esta conta?')">
+                        <i data-lucide="trash-2" style="width: 18px;"></i>
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<!-- Modal Novo Agente -->
+<div id="modal-novo-agente" class="modal">
+    <div class="modal-content">
+        <a href="#" class="modal-close"><i data-lucide="x"></i></a>
+        <h2 style="margin-bottom: 1.5rem;">Cadastrar Agente Pagador</h2>
+        <form action="{% url 'core:agente_create' %}" method="post">
+            {% csrf_token %}
+            {% for field in form_agente %}
+            <div class="form-group">
+                <label>{{ field.label }}</label>
+                {{ field }}
+            </div>
+            {% endfor %}
+            <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 1rem; justify-content: center;">Salvar Agente</button>
+        </form>
+    </div>
+</div>
+
+<!-- Modal Editar Agente -->
+<div id="modal-editar-agente" class="modal">
+    <div class="modal-content">
+        <a href="#" class="modal-close"><i data-lucide="x"></i></a>
+        <h2 style="margin-bottom: 1.5rem;">Editar Agente Pagador</h2>
+        <form id="edit-agente-form" action="" method="post">
+            {% csrf_token %}
+            <div class="form-group">
+                <label>Nome</label>
+                <input type="text" name="nome" id="edit_agente_nome" class="form-control" required>
+            </div>
+            <div class="form-group">
+                <label>Salário</label>
+                <input type="number" name="salario" id="edit_agente_salario" class="form-control" step="0.01" required>
+            </div>
+            <div class="form-group">
+                <label>Informações Bancárias</label>
+                <textarea name="info_bancaria" id="edit_agente_info" class="form-control" rows="3"></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 1rem; justify-content: center;">Salvar Alterações</button>
+        </form>
+    </div>
+</div>
+
+<!-- Modal Nova Categoria -->
+<div id="modal-nova-categoria" class="modal">
+    <div class="modal-content">
+        <a href="#" class="modal-close"><i data-lucide="x"></i></a>
+        <h2 style="margin-bottom: 1.5rem;">Cadastrar Categoria</h2>
+        <form action="{% url 'core:categoria_create' %}" method="post">
+            {% csrf_token %}
+            <div class="form-group">
+                <label>Nome da Categoria</label>
+                <input type="text" name="nome" class="form-control" placeholder="Ex: Moradia, Alimentação..." required>
+            </div>
+            <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 1rem; justify-content: center;">Salvar Categoria</button>
+        </form>
+    </div>
+</div>
+
+<!-- Modal Editar Conta -->
+<div id="modal-editar-conta" class="modal">
+    <div class="modal-content">
+        <a href="#" class="modal-close"><i data-lucide="x"></i></a>
+        <h2 style="margin-bottom: 1.5rem;">Editar Conta</h2>
+        <form id="edit-conta-form" action="" method="post">
+            {% csrf_token %}
+            <div class="form-group">
+                <label>Nome da Conta</label>
+                <input type="text" name="nome" id="edit_conta_nome" class="form-control" required>
+            </div>
+            <div class="form-group">
+                <label>Categoria</label>
+                <select name="categoria" id="edit_conta_categoria" class="form-control" required>
+                    {% for cat in categorias %}
+                    <option value="{{ cat.id }}">{{ cat.nome }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                <div class="form-group">
+                    <label>Tipo</label>
+                    <select name="tipo" id="edit_conta_tipo" class="form-control">
+                        <option value="fixa">Fixa</option>
+                        <option value="esporadica">Esporádica</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Dia Vencimento</label>
+                    <input type="number" name="dia_vencimento" id="edit_conta_dia" class="form-control" min="1" max="31">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Valor Padrão</label>
+                <input type="number" name="valor_padrao" id="edit_conta_valor" class="form-control" step="0.01">
+            </div>
+            <div class="form-group">
+                <label>Observações</label>
+                <textarea name="observacoes" id="edit_conta_obs" class="form-control" rows="3"></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 1rem; justify-content: center;">Salvar Alterações</button>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function openEditContaModal(pk, nome, catId, tipo, valor, dia, obs) {
+        const form = document.getElementById('edit-conta-form');
+        form.action = `/conta/${pk}/editar/`;
+        
+        document.getElementById('edit_conta_nome').value = nome;
+        document.getElementById('edit_conta_categoria').value = catId;
+        document.getElementById('edit_conta_tipo').value = tipo;
+        document.getElementById('edit_conta_valor').value = valor.replace(',', '.');
+        document.getElementById('edit_conta_dia').value = dia;
+        document.getElementById('edit_conta_obs').value = obs;
+
+        window.location.hash = 'modal-editar-conta';
+    }
+
+    function openEditAgenteModal(pk, nome, salario, info) {
+        const form = document.getElementById('edit-agente-form');
+        form.action = `/agente/${pk}/editar/`;
+        
+        document.getElementById('edit_agente_nome').value = nome;
+        document.getElementById('edit_agente_salario').value = salario.replace(',', '.');
+        document.getElementById('edit_agente_info').value = info;
+
+        window.location.hash = 'modal-editar-agente';
+    }
+</script>
+{% endblock %}

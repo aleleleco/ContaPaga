@@ -1,0 +1,173 @@
+{% extends 'core/base.html' %}
+
+{% block title %}Histórico: {{ parcelamento.nome }} - ContaPaga{% endblock %}
+{% block header_title %}Detalhamento de Parcelamento{% endblock %}
+
+{% block extra_css %}
+<style>
+    .p-detail-grid {
+        display: grid;
+        grid-template-columns: 1fr 350px;
+        gap: 1.5rem;
+    }
+    .status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        display: inline-block;
+        margin-right: 0.5rem;
+    }
+    .dot-pago { background-color: var(--success); }
+    .dot-pendente { background-color: var(--warning); }
+    
+    .stat-card-mini {
+        padding: 1.25rem;
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+    .stat-card-mini .label {
+        font-size: 0.75rem;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        font-weight: 700;
+    }
+    .stat-card-mini .value {
+        font-size: 1.25rem;
+        font-weight: 800;
+        color: var(--text-main);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div style="margin-bottom: 2rem;">
+    <a href="{% url 'core:parcelamentos_list' %}" class="btn" style="background: transparent; padding: 0; color: var(--text-muted); margin-bottom: 1rem;">
+        <i data-lucide="arrow-left" style="width: 18px;"></i> Voltar para Parcelamentos
+    </a>
+    <div style="display: flex; justify-content: space-between; align-items: flex-end;">
+        <div>
+            <div style="font-size: 0.875rem; color: var(--primary); font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 0.25rem;">
+                {{ parcelamento.categoria.nome }}
+            </div>
+            <h1 style="font-size: 2rem; font-weight: 800; color: var(--text-main);">{{ parcelamento.nome }}</h1>
+        </div>
+        <div style="text-align: right;">
+            <span class="badge badge-{% if parcelamento.status == 'ativo' %}warning{% else %}success{% endif %}" style="font-size: 0.875rem; padding: 0.5rem 1rem;">
+                {{ parcelamento.get_status_display }}
+            </span>
+        </div>
+    </div>
+</div>
+
+<div class="p-detail-grid">
+    <!-- TABELA DE LANÇAMENTOS -->
+    <div class="card" style="padding: 0; overflow: hidden;">
+        <div style="padding: 1.5rem; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
+            <h2 style="font-size: 1.125rem; font-weight: 700;">Cronograma de Pagamentos</h2>
+            <div style="font-size: 0.875rem; color: var(--text-muted);">{{ lancamentos.count }} parcelas vinculadas</div>
+        </div>
+        <div class="table-responsive">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Nº Parcela</th>
+                        <th>Competência</th>
+                        <th>Vencimento</th>
+                        <th style="text-align: right;">Previsto</th>
+                        <th style="text-align: right;">Pago</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for l in lancamentos %}
+                    <tr>
+                        <td style="font-weight: 700; color: var(--text-main);">{{ l.parcela_atual|default:forloop.counter }}/{{ l.total_parcelas }}</td>
+                        <td>{{ l.competencia }}</td>
+                        <td style="font-size: 0.875rem;">{{ l.vencimento|date:"d/m/Y" }}</td>
+                        <td style="text-align: right; font-weight: 600;">R$ {{ l.valor_previsto|floatformat:2 }}</td>
+                        <td style="text-align: right; font-weight: 600; color: var(--success);">
+                            {% if l.valor_pago %}R$ {{ l.valor_pago|floatformat:2 }}{% else %}-{% endif %}
+                        </td>
+                        <td>
+                            <span class="status-dot dot-{{ l.status }}"></span>
+                            <span style="font-size: 0.875rem; font-weight: 600;">{{ l.get_status_display }}</span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- SIDEBAR STATS -->
+    <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+        <div class="card" style="text-align: center; padding: 2rem;">
+            <div style="width: 150px; height: 150px; margin: 0 auto 1.5rem; position: relative;">
+                <canvas id="mainProgessChart"></canvas>
+                <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);">
+                    <div style="font-size: 1.5rem; font-weight: 800; color: var(--text-main);">{{ stats.progresso_perc|floatformat:0 }}%</div>
+                </div>
+            </div>
+            <h3 style="font-size: 1rem; font-weight: 700; margin-bottom: 0.5rem;">Resumo de Quitação</h3>
+            <p style="font-size: 0.875rem; color: var(--text-muted);">{{ parcelamento.parcelas_pagas }} de {{ parcelamento.total_parcelas }} parcelas pagas.</p>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr; gap: 1rem;">
+            <div class="stat-card-mini">
+                <div class="label">Total Pago</div>
+                <div class="value" style="color: var(--success);">R$ {{ stats.pago|floatformat:2 }}</div>
+            </div>
+            <div class="stat-card-mini">
+                <div class="label">A Pagar</div>
+                <div class="value" style="color: var(--warning);">R$ {{ stats.pendente|floatformat:2 }}</div>
+            </div>
+            <div class="stat-card-mini">
+                <div class="label">Economia (Descontos)</div>
+                <div class="value" style="color: #3b82f6;">R$ {{ stats.desconto_total|floatformat:2 }}</div>
+            </div>
+        </div>
+
+        {% if parcelamento.observacao %}
+        <div class="card" style="background: var(--bg-main); border-style: dashed;">
+            <div style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; margin-bottom: 0.5rem;">Observações</div>
+            <p style="font-size: 0.875rem; line-height: 1.5; color: var(--text-main);">{{ parcelamento.observacao }}</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const ctx = document.getElementById('mainProgessChart').getContext('2d');
+        const pagas = {{ parcelamento.parcelas_pagas }};
+        const restantes = {{ parcelamento.total_parcelas }} - pagas;
+
+        new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                datasets: [{
+                    data: [pagas, restantes],
+                    backgroundColor: ['#3b82f6', 'rgba(0,0,0,0.05)'],
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                cutout: '80%',
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: { enabled: false }
+                }
+            }
+        });
+    });
+</script>
+{% endblock %}

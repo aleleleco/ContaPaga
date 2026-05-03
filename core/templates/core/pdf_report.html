@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        @page {
+            size: A4;
+            margin: 2cm;
+        }
+        body {
+            font-family: Helvetica, Arial, sans-serif;
+            color: #333;
+            line-height: 1.5;
+        }
+        .header {
+            text-align: center;
+            border-bottom: 2px solid #3b82f6;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+        .title {
+            font-size: 24px;
+            font-weight: bold;
+            color: #1e3a8a;
+        }
+        .subtitle {
+            font-size: 16px;
+            color: #666;
+        }
+        .summary {
+            margin-bottom: 30px;
+            background-color: #f8fafc;
+            padding: 15px;
+            border-radius: 8px;
+        }
+        .summary-item {
+            margin-bottom: 5px;
+        }
+        .summary-label {
+            font-weight: bold;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th {
+            background-color: #3b82f6;
+            color: white;
+            text-align: left;
+            padding: 8px;
+            font-size: 12px;
+        }
+        td {
+            border-bottom: 1px solid #e2e8f0;
+            padding: 8px;
+            font-size: 11px;
+        }
+        .status-pago { color: #059669; font-weight: bold; }
+        .status-pendente { color: #d97706; font-weight: bold; }
+        .footer {
+            position: fixed;
+            bottom: 0;
+            width: 100%;
+            text-align: center;
+            font-size: 10px;
+            color: #999;
+            border-top: 1px solid #eee;
+            padding-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="title">Relatório de Contas - ContaPaga</div>
+        <div class="subtitle">Competência: {{ competencia.get_mes_display }}/{{ competencia.ano }}</div>
+    </div>
+
+    <div class="summary">
+        <div class="summary-item">
+            <span class="summary-label">Total Previsto:</span> R$ {{ total_previsto|floatformat:2 }}
+        </div>
+        <div class="summary-item">
+            <span class="summary-label">Total Pago:</span> R$ {{ total_pago|floatformat:2 }}
+        </div>
+        <div class="summary-item">
+            <span class="summary-label">Economia/Descontos:</span> R$ {{ total_descontos|floatformat:2 }}
+        </div>
+        <div class="summary-item">
+            <span class="summary-label">Status da Competência:</span> {{ competencia.get_status_display }}
+        </div>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>CONTA</th>
+                <th>VENCIMENTO</th>
+                <th>VALOR PREV.</th>
+                <th>VALOR PAGO</th>
+                <th>STATUS</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for l in lancamentos %}
+            <tr>
+                <td>{{ l.conta.nome }}{% if l.parcela_atual %} ({{ l.parcela_atual }}/{{ l.total_parcelas }}){% endif %}</td>
+                <td>{{ l.vencimento|date:"d/m/Y" }}</td>
+                <td>R$ {{ l.valor_previsto|floatformat:2 }}</td>
+                <td>{% if l.valor_pago %}R$ {{ l.valor_pago|floatformat:2 }}{% else %}-{% endif %}</td>
+                <td>
+                    <span class="status-{% if l.status == 'pago' %}pago{% else %}pendente{% endif %}">
+                        {{ l.get_status_display }}
+                    </span>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <div class="footer">
+        Gerado em {{ data_emissao|date:"d/m/Y H:i" }} | ContaPaga - Gestão Financeira Pessoal
+    </div>
+</body>
+</html>

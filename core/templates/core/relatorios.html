@@ -1,0 +1,380 @@
+{% extends 'core/base.html' %}
+
+{% block title %}Relatórios - ContaPaga{% endblock %}
+{% block header_title %}Relatórios Financeiros{% endblock %}
+
+{% block extra_css %}
+<style>
+    .report-tabs {
+        display: flex;
+        gap: 1rem;
+        margin-bottom: 2rem;
+        border-bottom: 1px solid var(--border);
+        padding-bottom: 1rem;
+    }
+    .tab-link {
+        padding: 0.75rem 1.5rem;
+        border-radius: 10px;
+        text-decoration: none;
+        color: var(--text-muted);
+        font-weight: 600;
+        font-size: 0.875rem;
+        transition: all 0.2s;
+        border: 1px solid transparent;
+    }
+    .tab-link:hover {
+        background-color: var(--bg-main);
+        color: var(--primary);
+    }
+    .tab-link.active {
+        background-color: #3b82f6;
+        color: white;
+    }
+    .report-section {
+        display: none;
+    }
+    .report-section.active {
+        display: block;
+    }
+    .grid-2 {
+        display: grid;
+        grid-template-columns: 1.5fr 1fr;
+        gap: 1.5rem;
+    }
+    .summary-card {
+        text-align: center;
+        padding: 2rem;
+    }
+    .trend-indicator {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        padding: 0.25rem 0.75rem;
+        border-radius: 50px;
+        font-size: 0.875rem;
+        font-weight: 600;
+        margin-top: 1rem;
+    }
+    .trend-up { background-color: #fef2f2; color: var(--danger); }
+    .trend-down { background-color: #ecfdf5; color: var(--success); }
+    
+    .filter-bar {
+        background-color: var(--bg-card);
+        padding: 1.25rem;
+        border-radius: 16px;
+        border: 1px solid var(--border);
+        margin-bottom: 1.5rem;
+        display: flex;
+        gap: 1.5rem;
+        align-items: center;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- BARRA DE FILTROS -->
+<div class="filter-bar">
+    <div style="flex: 1;">
+        <label class="comp-label" style="display: block; margin-bottom: 0.5rem;">Pesquisar Competência</label>
+        <form action="{% url 'core:relatorios' %}" method="get" id="filter-form">
+            <select name="comp_id" class="form-control" onchange="this.form.submit()">
+                {% for comp in todas_competencias %}
+                <option value="{{ comp.id }}" {% if comp.id == comp_atual.id %}selected{% endif %}>{{ comp }}</option>
+                {% endfor %}
+            </select>
+            {% if conta_selecionada %}
+                <input type="hidden" name="conta_id" value="{{ conta_selecionada.id }}">
+            {% endif %}
+        </form>
+    </div>
+    <div style="flex: 1;">
+        <label class="comp-label" style="display: block; margin-bottom: 0.5rem;">Comparativo por Conta</label>
+        <form action="{% url 'core:relatorios' %}" method="get">
+            <input type="hidden" name="comp_id" value="{{ comp_atual.id }}">
+            <select name="conta_id" class="form-control" onchange="this.form.submit()">
+                <option value="">Selecione uma conta...</option>
+                {% for c in todas_contas %}
+                <option value="{{ c.id }}" {% if c.id == conta_selecionada.id %}selected{% endif %}>{{ c.nome }}</option>
+                {% endfor %}
+            </select>
+        </form>
+    </div>
+    <a href="{% url 'core:exportar_pdf' comp_atual.pk %}" class="btn" style="background-color: white; border: 1px solid var(--border); color: #dc2626; margin-top: 1.5rem;">
+        <i data-lucide="file-text"></i> PDF
+    </a>
+</div>
+
+<div class="report-tabs">
+    <a href="#mensal" class="tab-link active" onclick="showTab('mensal')">Visão Mensal</a>
+    <a href="#fixas" class="tab-link" onclick="showTab('fixas')">Contas Fixas</a>
+    <a href="#agentes" class="tab-link" onclick="showTab('agentes')">Agentes Pagadores</a>
+    <a href="#previsao" class="tab-link" onclick="showTab('previsao')">Previsão 3 Meses</a>
+    {% if conta_selecionada %}
+    <a href="#historico" class="tab-link" onclick="showTab('historico')">Histórico: {{ conta_selecionada.nome }}</a>
+    {% endif %}
+</div>
+
+<!-- SEÇÃO: VISÃO MENSAL -->
+<div id="mensal" class="report-section active">
+    <div class="grid-2">
+        <div class="card">
+            <h2 style="font-size: 1.125rem; font-weight: 600; margin-bottom: 1.5rem;">Distribuição por Categoria</h2>
+            <div style="height: 350px;">
+                <canvas id="categoryChart"></canvas>
+            </div>
+        </div>
+        <div class="card summary-card">
+            <h2 style="font-size: 1.125rem; font-weight: 600; color: var(--text-muted);">Total Pago em {{ comp_atual }}</h2>
+            <div style="font-size: 2.5rem; font-weight: 800; margin: 1rem 0;">R$ {{ total_atual|floatformat:2 }}</div>
+            {% if comp_anterior %}
+                <div style="color: var(--text-muted); font-size: 0.875rem;">Anterior: R$ {{ total_anterior|floatformat:2 }}</div>
+                {% if total_atual > total_anterior %}
+                    <div class="trend-indicator trend-up"><i data-lucide="trending-up"></i> Aumento de R$ {{ diff_valor|floatformat:2 }}</div>
+                {% else %}
+                    <div class="trend-indicator trend-down"><i data-lucide="trending-down"></i> Redução de R$ {{ diff_valor|floatformat:2 }}</div>
+                {% endif %}
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- SEÇÃO: COMPARATIVO FIXAS -->
+<div id="fixas" class="report-section">
+    <div class="grid-2">
+        <div class="card">
+            <h2 style="font-size: 1.125rem; font-weight: 600; margin-bottom: 1.5rem;">Análise Visual: Contas Fixas</h2>
+            <div style="height: 350px;">
+                <canvas id="fixasChart"></canvas>
+            </div>
+        </div>
+        <div class="card" style="padding: 1.5rem;">
+            <h2 style="font-size: 1.125rem; font-weight: 600; margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                <i data-lucide="list-checks" style="color: var(--primary);"></i>
+                Detalhamento
+            </h2>
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Conta</th>
+                            <th style="text-align: right;">Variação</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in comparativo_fixas %}
+                        <tr>
+                            <td>
+                                <div style="font-weight: 600; color: var(--text-main);">{{ item.nome }}</div>
+                                <div style="font-size: 0.7rem; color: var(--text-muted);">Vs mês anterior</div>
+                            </td>
+                            <td style="text-align: right;">
+                                <div class="trend-indicator {% if item.diff > 0 %}trend-up{% elif item.diff < 0 %}trend-down{% else %}{% endif %}" style="margin-top: 0; padding: 0.25rem 0.6rem;">
+                                    {% if item.diff > 0 %}
+                                        <i data-lucide="arrow-up-right" style="width: 14px;"></i>
+                                        +R$ {{ item.diff|floatformat:2 }}
+                                    {% elif item.diff < 0 %}
+                                        <i data-lucide="arrow-down-right" style="width: 14px;"></i>
+                                        R$ {{ item.diff|floatformat:2 }}
+                                    {% else %}
+                                        <i data-lucide="minus" style="width: 14px;"></i>
+                                        Estável
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- SEÇÃO: AGENTES PAGADORES -->
+<div id="agentes" class="report-section">
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 1.5rem;">
+        {% for a in agentes_stats %}
+        <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1rem;">
+                <div>
+                    <h3 style="font-size: 1.125rem; font-weight: 700;">{{ a.nome }}</h3>
+                    <p style="font-size: 0.8125rem; color: var(--text-muted);">Salário: R$ {{ a.salario|floatformat:2 }}</p>
+                </div>
+                <div style="text-align: right;">
+                    <div style="font-size: 1.25rem; font-weight: 800; color: {% if a.perc > 90 %}var(--danger){% else %}var(--primary){% endif %};">
+                        R$ {{ a.gasto|floatformat:2 }}
+                    </div>
+                    <div style="font-size: 0.75rem; color: var(--text-muted);">Gasto no Mês</div>
+                </div>
+            </div>
+
+            <div style="margin-bottom: 1.25rem;">
+                <div style="display: flex; justify-content: space-between; font-size: 0.75rem; font-weight: 700; margin-bottom: 0.4rem;">
+                    <span>Consumo do Salário</span>
+                    <span>{{ a.perc|floatformat:1 }}%</span>
+                </div>
+                <div style="height: 10px; background: var(--bg-main); border-radius: 5px; overflow: hidden; border: 1px solid var(--border);">
+                    <div style="height: 100%; width: {{ a.perc }}%; background: {% if a.perc > 100 %}var(--danger){% elif a.perc > 80 %}var(--warning){% else %}var(--success){% endif %}; transition: width 1s;"></div>
+                </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; padding-top: 1rem; border-top: 1px dashed var(--border);">
+                <div>
+                    <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase;">Saldo Restante</div>
+                    <div style="font-weight: 700; color: {% if a.saldo < 0 %}var(--danger){% else %}var(--success){% endif %};">
+                        R$ {{ a.saldo|floatformat:2 }}
+                    </div>
+                </div>
+                <div style="text-align: right;">
+                    <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase;">Situação</div>
+                    <div style="font-weight: 700; font-size: 0.875rem;">
+                        {% if a.perc > 100 %}
+                            <span style="color: var(--danger);">Excedido</span>
+                        {% elif a.perc > 80 %}
+                            <span style="color: var(--warning);">Crítico</span>
+                        {% else %}
+                            <span style="color: var(--success);">Controlado</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="card" style="grid-column: 1 / -1; text-align: center; padding: 3rem;">
+            <p style="color: var(--text-muted);">Nenhum agente pagador com gastos registrados neste mês.</p>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- SEÇÃO: HISTÓRICO DE CONTA -->
+{% if conta_selecionada %}
+<div id="historico" class="report-section">
+    <div class="grid-2">
+        <div class="card">
+            <h2 style="font-size: 1.125rem; font-weight: 600; margin-bottom: 1.5rem;">Evolução: {{ conta_selecionada.nome }}</h2>
+            <div style="height: 350px;">
+                <canvas id="accountHistoryChart"></canvas>
+            </div>
+        </div>
+        <div class="card">
+            <h2 style="font-size: 1.125rem; font-weight: 600; margin-bottom: 1.5rem;">Últimos Lançamentos</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Competência</th>
+                        <th>Valor Pago</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for h in historico_conta %}
+                    <tr>
+                        <td>{{ h.competencia }}</td>
+                        <td>R$ {{ h.valor_pago|default:h.valor_previsto|floatformat:2 }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- SEÇÃO: PREVISÃO -->
+<div id="previsao" class="report-section">
+    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem;">
+        {% for p in previsoes %}
+        <div class="card">
+            <h3 style="font-size: 1rem; color: var(--text-muted); margin-bottom: 1rem;">{{ p.mes }}</h3>
+            <div style="font-size: 1.5rem; font-weight: 700; color: var(--primary);">R$ {{ p.total|floatformat:2 }}</div>
+            <hr style="margin: 1rem 0; border: 0; border-top: 1px solid var(--border);">
+            <div style="display: flex; justify-content: space-between; font-size: 0.875rem;">
+                <span>Fixas:</span>
+                <span>R$ {{ p.fixas|floatformat:2 }}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; font-size: 0.875rem; margin-top: 0.5rem;">
+                <span>Parcelas:</span>
+                <span>R$ {{ p.parcelas|floatformat:2 }}</span>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    function showTab(tabId) {
+        document.querySelectorAll('.tab-link').forEach(link => link.classList.remove('active'));
+        document.querySelectorAll('.report-section').forEach(section => section.classList.remove('active'));
+        const link = document.querySelector(`a[href="#${tabId}"]`);
+        if (link) link.classList.add('active');
+        const section = document.getElementById(tabId);
+        if (section) section.classList.add('active');
+    }
+
+    // GRÁFICO CATEGORIAS
+    new Chart(document.getElementById('categoryChart'), {
+        type: 'doughnut',
+        data: {
+            labels: {{ labels_categorias|safe }},
+            datasets: [{
+                data: {{ valores_categorias|safe }},
+                backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#64748b'],
+                borderWidth: 0
+            }]
+        },
+        options: { responsive: true, maintainAspectRatio: false, cutout: '70%' }
+    });
+
+    // GRÁFICO FIXAS (COMPARATIVO)
+    new Chart(document.getElementById('fixasChart'), {
+        type: 'bar',
+        data: {
+            labels: {{ labels_fixas|safe }},
+            datasets: [
+                {
+                    label: 'Mês Anterior',
+                    data: {{ valores_fixas_ant|safe }},
+                    backgroundColor: '#e2e8f0',
+                    borderRadius: 5
+                },
+                {
+                    label: 'Mês Atual',
+                    data: {{ valores_fixas_atual|safe }},
+                    backgroundColor: '#3b82f6',
+                    borderRadius: 5
+                }
+            ]
+        },
+        options: { responsive: true, maintainAspectRatio: false }
+    });
+
+    {% if conta_selecionada %}
+    // GRÁFICO HISTÓRICO CONTA
+    new Chart(document.getElementById('accountHistoryChart'), {
+        type: 'line',
+        data: {
+            labels: {{ labels_historico|safe }},
+            datasets: [{
+                label: 'Valor Pago',
+                data: {{ valores_historico|safe }},
+                borderColor: '#3b82f6',
+                tension: 0.4,
+                fill: true,
+                backgroundColor: 'rgba(59, 130, 246, 0.1)'
+            }]
+        },
+        options: { responsive: true, maintainAspectRatio: false }
+    });
+    // Auto show history tab if account is selected
+    window.addEventListener('load', () => showTab('historico'));
+    {% endif %}
+
+    window.addEventListener('load', () => {
+        const hash = window.location.hash.substring(1);
+        if (hash) showTab(hash);
+    });
+</script>
+{% endblock %}

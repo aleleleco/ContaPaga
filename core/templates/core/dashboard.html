@@ -1,0 +1,288 @@
+{% extends 'core/base.html' %}
+
+{% block title %}Dashboard - ContaPaga{% endblock %}
+
+{% block extra_css %}
+<style>
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 1.5rem;
+        margin-bottom: 2.5rem;
+    }
+
+    .stat-card {
+        padding: 1.5rem;
+        border-radius: var(--radius);
+        background-color: var(--bg-card);
+        border: 1px solid var(--border);
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+    }
+
+    .stat-info h3 {
+        font-size: 0.875rem;
+        color: var(--text-muted);
+        font-weight: 500;
+        margin-bottom: 0.5rem;
+    }
+
+    .stat-info .value {
+        font-size: 1.5rem;
+        font-weight: 700;
+    }
+
+    .stat-icon {
+        padding: 0.75rem;
+        border-radius: 10px;
+        background-color: #eff6ff;
+        color: var(--primary);
+    }
+
+    .stat-icon.success { background-color: #ecfdf5; color: var(--success); }
+    .stat-icon.danger { background-color: #fef2f2; color: var(--danger); }
+    .stat-icon.warning { background-color: #fffbeb; color: var(--warning); }
+
+    .content-grid {
+        display: grid;
+        grid-template-columns: 2fr 1fr;
+        gap: 1.5rem;
+    }
+
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 1rem;
+    }
+
+    th {
+        text-align: left;
+        padding: 0.75rem 1rem;
+        color: var(--text-muted);
+        font-weight: 500;
+        font-size: 0.875rem;
+        border-bottom: 1px solid var(--border);
+    }
+
+    td {
+        padding: 1rem;
+        border-bottom: 1px solid var(--border);
+        font-size: 0.875rem;
+    }
+
+    .badge {
+        padding: 0.25rem 0.5rem;
+        border-radius: 6px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+    }
+
+    .badge-success { background-color: #ecfdf5; color: var(--success); }
+    .badge-warning { background-color: #fffbeb; color: var(--warning); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-info">
+            <h3>Total a Pagar (Mês)</h3>
+            <div class="value">R$ {{ stats.total_a_pagar|floatformat:2 }}</div>
+        </div>
+        <div class="stat-icon warning">
+            <i data-lucide="clock"></i>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-info">
+            <h3>Total Pago</h3>
+            <div class="value">R$ {{ stats.total_pago|floatformat:2 }}</div>
+        </div>
+        <div class="stat-icon success">
+            <i data-lucide="check-circle"></i>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-info">
+            <h3>Economia/Descontos</h3>
+            <div class="value">R$ {{ stats.total_descontos|floatformat:2 }}</div>
+        </div>
+        <div class="stat-icon">
+            <i data-lucide="trending-down"></i>
+        </div>
+    </div>
+</div>
+
+<div class="content-grid">
+    <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <h2 style="font-size: 1.125rem; font-weight: 600;">Lançamentos Recentes</h2>
+            <a href="#" style="color: var(--primary); font-size: 0.875rem; text-decoration: none;">Ver tudo</a>
+        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th>Conta</th>
+                    <th>Vencimento</th>
+                    <th>Valor</th>
+                    <th>Status</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for lancamento in lancamentos %}
+                <tr>
+                    <td>
+                        <div style="font-weight: 600;">{{ lancamento.conta.nome }}{% if lancamento.parcela_atual %} ({{ lancamento.parcela_atual }}/{{ lancamento.total_parcelas }}){% endif %}</div>
+                        <div style="font-size: 0.7rem; color: var(--text-muted);">
+                            {{ lancamento.conta.categoria.nome }}
+                            {% if lancamento.conta.observacoes %} - <span style="font-style: italic;">{{ lancamento.conta.observacoes }}</span>{% endif %}
+                        </div>
+                    </td>
+                    <td>{{ lancamento.vencimento|date:"d/m/Y" }}</td>
+                    <td>R$ {{ lancamento.valor_previsto|floatformat:2 }}</td>
+                    <td>
+                        <span class="badge badge-{% if lancamento.status == 'pago' %}success{% else %}warning{% endif %}">
+                            {{ lancamento.get_status_display }}
+                        </span>
+                    </td>
+                    <td>
+                        {% if lancamento.status == 'pendente' %}
+                            {% if competencia.status == 'aberto' %}
+                            <button onclick="openPaymentModal('{{ lancamento.pk }}', '{{ lancamento.conta.nome }}', '{{ lancamento.valor_previsto }}')" class="btn" style="padding: 0.25rem 0.5rem; background-color: var(--success); color: white; font-size: 0.75rem;">
+                                <i data-lucide="dollar-sign" style="width: 14px; height: 14px;"></i> Pagar
+                            </button>
+                            {% else %}
+                            <span style="color: var(--text-muted); font-size: 0.75rem;">Mês Fechado</span>
+                            {% endif %}
+                        {% else %}
+                        <i data-lucide="check-circle" style="color: var(--success); width: 18px;"></i>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="4" style="text-align: center; color: var(--text-muted); padding: 2rem;">
+                        Nenhum lançamento cadastrado para esta competência.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <h2 style="font-size: 1.125rem; font-weight: 600;">Filtrar Competência</h2>
+            <i data-lucide="filter" style="width: 18px; color: var(--text-muted);"></i>
+        </div>
+        <form action="{% url 'core:dashboard' %}" method="get" id="filter-form">
+            <select name="comp_id" class="form-control" onchange="this.form.submit()">
+                {% for comp in todas_competencias %}
+                <option value="{{ comp.id }}" {% if comp.id == competencia.id %}selected{% endif %}>
+                    {{ comp }}
+                </option>
+                {% endfor %}
+            </select>
+        </form>
+        
+        <hr style="margin: 1.5rem 0; border: 0; border-top: 1px solid var(--border);">
+        
+        <h2 style="font-size: 1.125rem; font-weight: 600; margin-bottom: 1rem;">Status</h2>
+        <div style="padding: 1rem; background-color: var(--bg-main); border-radius: var(--radius); text-align: center;">
+            <div style="font-size: 1.25rem; font-weight: 700;">{{ competencia }}</div>
+            <div style="font-size: 0.875rem; color: {% if competencia.status == 'aberto' %}var(--success){% else %}var(--danger){% endif %}; margin-top: 0.25rem; font-weight: 600;">
+                <i data-lucide="{% if competencia.status == 'aberto' %}lock-open{% else %}lock{% endif %}" style="width: 14px; vertical-align: middle;"></i>
+                {{ competencia.get_status_display|upper }}
+            </div>
+        </div>
+        
+        {% if competencia.status == 'aberto' %}
+        <form action="{% url 'core:dashboard' %}?comp_id={{ competencia.id }}" method="post">
+            {% csrf_token %}
+            <input type="hidden" name="importar_fixas" value="true">
+            <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 1rem; justify-content: center; background-color: #3b82f6;">
+                <i data-lucide="refresh-cw"></i> Importar Fixas
+            </button>
+        </form>
+
+        <form action="{% url 'core:dashboard' %}?comp_id={{ competencia.id }}" method="post" onsubmit="return confirm('Deseja realmente fechar este mês? Não será possível registrar novos pagamentos.')">
+            {% csrf_token %}
+            <input type="hidden" name="fechar_mes" value="true">
+            <button type="submit" class="btn" style="width: 100%; margin-top: 0.5rem; justify-content: center; background-color: #ef4444; color: white;">
+                <i data-lucide="lock"></i> Fechar Mês
+            </button>
+        </form>
+        {% else %}
+        <div style="margin-top: 1rem; padding: 1rem; border: 1px dashed var(--danger); border-radius: 10px; color: var(--danger); font-size: 0.875rem; text-align: center;">
+            <i data-lucide="info" style="width: 16px; margin-bottom: 0.25rem;"></i><br>
+            Esta competência está encerrada e não aceita mais alterações.
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Modal Registrar Pagamento -->
+<div id="modal-pagamento" class="modal">
+    <div class="modal-content">
+        <a href="#" class="modal-close"><i data-lucide="x"></i></a>
+        <h2 id="payment-modal-title" style="margin-bottom: 1.5rem;">Pagar Conta</h2>
+        <form id="payment-form" action="" method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+            <div class="form-group">
+                <label>Valor Pago</label>
+                <input type="number" name="valor_pago" id="id_valor_pago" class="form-control" step="0.01" required>
+            </div>
+            <div class="form-group">
+                <label>Data Pagamento</label>
+                <input type="date" name="data_pagamento" id="id_data_pagamento" class="form-control" required>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                <div class="form-group">
+                    <label>Juros</label>
+                    <input type="number" name="juros" class="form-control" step="0.01" value="0.00">
+                </div>
+                <div class="form-group">
+                    <label>Desconto</label>
+                    <input type="number" name="desconto" class="form-control" step="0.01" value="0.00">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Comprovante</label>
+                <input type="file" name="comprovante" class="form-control">
+            </div>
+            <div class="form-group">
+                <label>Agente Pagador</label>
+                <select name="agente_pagador" class="form-control">
+                    <option value="">Selecione quem pagou...</option>
+                    {% for agente in agentes_pagadores %}
+                    <option value="{{ agente.id }}">{{ agente.nome }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 1rem; justify-content: center;">Confirmar Pagamento</button>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function openPaymentModal(pk, nome, valor) {
+        const modal = document.getElementById('modal-pagamento');
+        const form = document.getElementById('payment-form');
+        const title = document.getElementById('payment-modal-title');
+        const inputValor = document.getElementById('id_valor_pago');
+        const inputData = document.getElementById('id_data_pagamento');
+
+        title.innerText = `Pagar: ${nome}`;
+        form.action = `/pagamento/${pk}/registrar/`;
+        inputValor.value = valor.replace(',', '.');
+        inputData.value = new Date().toISOString().split('T')[0];
+        
+        window.location.hash = 'modal-pagamento';
+    }
+</script>
+{% endblock %}

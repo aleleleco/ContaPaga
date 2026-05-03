@@ -1,0 +1,196 @@
+{% extends 'core/base.html' %}
+
+{% block title %}Central de Legado - ContaPaga{% endblock %}
+{% block header_title %}Central de Migração de Dados{% endblock %}
+
+{% block extra_css %}
+<style>
+    .legacy-grid {
+        display: grid;
+        grid-template-columns: 350px 1fr;
+        gap: 2rem;
+        align-items: start;
+    }
+    .badge-legacy {
+        background-color: #fef3c7;
+        color: #92400e;
+        padding: 0.25rem 0.5rem;
+        border-radius: 6px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+    .btn-migrate {
+        padding: 0.35rem 0.7rem;
+        background-color: var(--primary);
+        color: white;
+        border-radius: 6px;
+        text-decoration: none;
+        font-size: 0.8rem;
+        transition: opacity 0.2s;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+    }
+    .btn-migrate:hover { opacity: 0.9; }
+    
+    .btn-migrate-bulk {
+        padding: 0.4rem 0.8rem;
+        background-color: #059669;
+        color: white;
+        border-radius: 8px;
+        text-decoration: none;
+        font-size: 0.8rem;
+        font-weight: 600;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .row-migrada {
+        background-color: #f0fdf4;
+        opacity: 0.7;
+    }
+    .status-check {
+        color: #059669;
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+
+    .comp-group {
+        margin-bottom: 2rem;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        overflow: hidden;
+    }
+    .comp-header {
+        background-color: var(--bg-main);
+        padding: 1rem 1.5rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-bottom: 1px solid var(--border);
+    }
+    
+    .section-title {
+        font-size: 1.125rem;
+        font-weight: 700;
+        margin-bottom: 1rem;
+        color: var(--text-main);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="card" style="margin-bottom: 2rem; background-color: #f8fafc;">
+    <h2 style="font-size: 1.125rem; font-weight: 600; margin-bottom: 0.5rem;">Acompanhamento de Migração</h2>
+    <p style="color: var(--text-muted); font-size: 0.875rem;">
+        Migre as <strong>Contas</strong> e <strong>Parcelamentos</strong> antes dos lançamentos mensais.
+    </p>
+</div>
+
+<div class="legacy-grid">
+    <!-- COLUNA ESQUERDA: CONTAS E PARCELAMENTOS -->
+    <div style="position: sticky; top: 1.5rem;">
+        
+        <!-- CONTAS -->
+        <div class="card" style="margin-bottom: 2rem;">
+            <h2 class="section-title"><i data-lucide="book-open"></i> Contas</h2>
+            <div class="table-responsive">
+                <table>
+                    <tbody>
+                        {% for c in contas_legado %}
+                        <tr class="{% if c.migrada %}row-migrada{% endif %}">
+                            <td>
+                                <div style="font-weight: 600; font-size: 0.875rem;">{{ c.nome }}</div>
+                                {% if c.migrada %}
+                                <div class="status-check"><i data-lucide="check-circle-2" style="width:12px;"></i> OK</div>
+                                {% endif %}
+                            </td>
+                            <td style="text-align: right;">
+                                {% if not c.migrada %}
+                                <a href="{% url 'core:legacy_migrate_conta' c.id %}" class="btn-migrate">Migrar</a>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- PARCELAMENTOS -->
+        <div class="card">
+            <h2 class="section-title"><i data-lucide="layers"></i> Contratos</h2>
+            <div class="table-responsive">
+                <table>
+                    <tbody>
+                        {% for p in parcelamentos_legado %}
+                        <tr class="{% if p.migrado %}row-migrada{% endif %}">
+                            <td>
+                                <div style="font-weight: 600; font-size: 0.875rem;">{{ p.nome }}</div>
+                                <div style="font-size: 0.7rem; color: var(--text-muted);">{{ p.pagas }}/{{ p.total }} parcelas</div>
+                                {% if p.migrado %}
+                                <div class="status-check"><i data-lucide="check-circle-2" style="width:12px;"></i> OK</div>
+                                {% endif %}
+                            </td>
+                            <td style="text-align: right;">
+                                {% if not p.migrado %}
+                                <a href="{% url 'core:legacy_migrate_parcelamento' p.id %}" class="btn-migrate">Migrar</a>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- COLUNA DIREITA: LANÇAMENTOS AGRUPADOS -->
+    <div>
+        <h2 class="section-title"><i data-lucide="history"></i> Lançamentos Históricos</h2>
+        {% for comp in competencias_legado %}
+        <div class="comp-group">
+            <div class="comp-header">
+                <div>
+                    <h3 style="font-size: 1rem; font-weight: 700; margin: 0;">{{ comp.label }}</h3>
+                    <span style="font-size: 0.75rem; color: var(--text-muted);">{{ comp.lancamentos|length }} registros</span>
+                </div>
+                <a href="{% url 'core:legacy_migrate_competencia' comp.id %}" class="btn-migrate-bulk">
+                    <i data-lucide="copy-check"></i> Migrar Mês
+                </a>
+            </div>
+            <div class="comp-body">
+                <table style="margin: 0;">
+                    <tbody>
+                        {% for l in comp.lancamentos %}
+                        <tr class="{% if l.migrado %}row-migrada{% endif %}">
+                            <td style="padding-left: 1.5rem;">
+                                <div style="font-weight: 600;">{{ l.conta }}</div>
+                                <div style="font-size: 0.7rem; color: var(--text-muted);">{{ l.data }}</div>
+                            </td>
+                            <td>R$ {{ l.valor|floatformat:2 }}</td>
+                            <td style="text-align: right; padding-right: 1.5rem;">
+                                {% if l.migrado %}
+                                    <div class="status-check" style="justify-content: flex-end;"><i data-lucide="check-circle-2" style="width:14px;"></i> OK</div>
+                                {% else %}
+                                    <a href="{% url 'core:legacy_migrate_lancamento' l.id %}" class="btn-migrate">Migrar</a>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,166 @@
+{% extends 'core/base.html' %}
+
+{% block title %}Competências - ContaPaga{% endblock %}
+{% block header_title %}Gestão de Competências{% endblock %}
+
+{% block extra_css %}
+<style>
+    .comp-list {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .comp-card {
+        background-color: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 1.25rem 1.5rem;
+        display: grid;
+        grid-template-columns: 1.5fr 2fr 2fr 1fr 1.5fr;
+        align-items: center;
+        transition: all 0.2s;
+        gap: 1rem;
+    }
+
+    .comp-card:hover {
+        border-color: var(--primary);
+        box-shadow: var(--shadow);
+        transform: translateX(4px);
+    }
+
+    .comp-info {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .comp-name {
+        font-weight: 700;
+        font-size: 1.125rem;
+        color: var(--text-main);
+        text-decoration: none;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .comp-name:hover {
+        color: var(--primary);
+    }
+
+    .comp-label {
+        font-size: 0.75rem;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-bottom: 0.25rem;
+    }
+
+    .comp-value {
+        font-weight: 600;
+        font-size: 1rem;
+    }
+
+    .comp-value.pago { color: var(--success); }
+    .comp-value.pendente { color: var(--warning); }
+
+    .status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.4rem 0.8rem;
+        border-radius: 50px;
+        font-size: 0.75rem;
+        font-weight: 700;
+        text-transform: uppercase;
+    }
+
+    .status-open { background-color: #ecfdf5; color: #059669; }
+    .status-closed { background-color: #fef2f2; color: #dc2626; }
+
+    .comp-actions {
+        display: flex;
+        justify-content: flex-end;
+    }
+
+    .btn-reopen {
+        background-color: var(--bg-main);
+        border: 1px solid var(--border);
+        color: var(--text-main);
+        padding: 0.5rem 1rem;
+        border-radius: 10px;
+        font-size: 0.875rem;
+        font-weight: 600;
+        text-decoration: none;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        transition: all 0.2s;
+    }
+
+    .btn-reopen:hover {
+        background-color: var(--primary);
+        color: white;
+        border-color: var(--primary);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div style="margin-bottom: 2.5rem;">
+    <p style="color: var(--text-muted);">Visualize o histórico financeiro e controle o status de cada mês.</p>
+</div>
+
+<div class="comp-list">
+    {% for comp in competencias %}
+    <div class="comp-card">
+        <div class="comp-info">
+            <div class="comp-label">Período</div>
+            <a href="{% url 'core:dashboard' %}?comp_id={{ comp.id }}" class="comp-name">
+                {{ comp }}
+                <i data-lucide="chevron-right" style="width: 16px;"></i>
+            </a>
+        </div>
+
+        <div class="comp-info">
+            <div class="comp-label">Previsto</div>
+            <div class="comp-value">R$ {{ comp.total_previsto|floatformat:2 }}</div>
+        </div>
+
+        <div class="comp-info">
+            <div class="comp-label">Total Pago</div>
+            <div class="comp-value pago">R$ {{ comp.total_pago|floatformat:2 }}</div>
+        </div>
+
+        <div>
+            <div class="status-pill {% if comp.status == 'aberto' %}status-open{% else %}status-closed{% endif %}">
+                <i data-lucide="{% if comp.status == 'aberto' %}lock-open{% else %}lock{% endif %}" style="width: 14px;"></i>
+                {{ comp.get_status_display }}
+            </div>
+        </div>
+
+        <div class="comp-actions" style="gap: 0.5rem;">
+            <a href="{% url 'core:exportar_pdf' comp.pk %}" class="btn-reopen" style="background-color: #f8fafc; border-color: #cbd5e1;">
+                <i data-lucide="file-text" style="width: 16px;"></i>
+                PDF
+            </a>
+            {% if comp.status == 'fechado' %}
+            <a href="{% url 'core:competencia_reabrir' comp.pk %}" class="btn-reopen">
+                <i data-lucide="rotate-ccw" style="width: 16px;"></i>
+                Reabrir
+            </a>
+            {% else %}
+            <div style="font-size: 0.75rem; color: var(--text-muted); text-align: right; line-height: 1.2;">
+                Feche pelo<br>Dashboard
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    {% empty %}
+    <div class="card" style="text-align: center; padding: 4rem;">
+        <i data-lucide="calendar-x" style="width: 48px; height: 48px; color: var(--border); margin-bottom: 1rem;"></i>
+        <p style="color: var(--text-muted);">Nenhuma competência cadastrada.</p>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

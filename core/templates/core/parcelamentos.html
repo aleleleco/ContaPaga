@@ -1,0 +1,345 @@
+{% extends 'core/base.html' %}
+
+{% block title %}Contas Parceladas - ContaPaga{% endblock %}
+{% block header_title %}Gestão de Contas Parceladas{% endblock %}
+
+{% block extra_css %}
+<style>
+    .parcelamentos-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+        gap: 1.5rem;
+        margin-top: 1rem;
+    }
+
+    .p-card {
+        background-color: var(--bg-card);
+        border-radius: 20px;
+        padding: 1.5rem;
+        border: 1px solid var(--border);
+        box-shadow: var(--shadow);
+        position: relative;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        display: grid;
+        grid-template-columns: 1fr 120px;
+        gap: 1rem;
+        align-items: center;
+    }
+
+    .p-card:hover {
+        transform: translateY(-4px);
+        border-color: var(--primary);
+        box-shadow: 0 10px 25px -5px rgba(59, 130, 246, 0.1);
+    }
+
+    .p-info {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .p-chart-container {
+        width: 120px;
+        height: 120px;
+        position: relative;
+    }
+
+    .p-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 1rem;
+    }
+
+    .p-title h3 {
+        font-size: 1.125rem;
+        font-weight: 700;
+        margin-bottom: 0.25rem;
+        color: var(--text-main);
+    }
+
+    .p-category {
+        font-size: 0.75rem;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        font-weight: 600;
+        letter-spacing: 0.05em;
+    }
+
+    .p-stats {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.75rem;
+        margin-bottom: 1rem;
+    }
+
+    .p-stat-item {
+        font-size: 0.8125rem;
+    }
+
+    .p-stat-label {
+        color: var(--text-muted);
+        margin-bottom: 0.15rem;
+    }
+
+    .p-stat-value {
+        font-weight: 700;
+        font-size: 0.9375rem;
+        color: var(--text-main);
+    }
+
+    .p-footer {
+        grid-column: 1 / -1;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding-top: 1rem;
+        border-top: 1px solid var(--border);
+        margin-top: 0.5rem;
+    }
+
+    .p-obs {
+        font-size: 0.75rem;
+        color: var(--text-muted);
+        font-style: italic;
+    }
+
+    .btn-delete {
+        color: var(--text-muted);
+        transition: color 0.2s;
+    }
+
+    .btn-delete:hover {
+        color: var(--danger);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+    <div>
+        <h1 style="font-size: 1.5rem; font-weight: 800; color: var(--text-main);">Parcelamentos Ativos</h1>
+        <p style="color: var(--text-muted);">Gerencie seus compromissos de longo prazo e visualize o progresso de quitação.</p>
+    </div>
+    <a href="#modal-novo-parcelamento" class="btn btn-primary">
+        <i data-lucide="plus"></i> Novo Parcelamento
+    </a>
+</div>
+
+<div class="parcelamentos-grid">
+    {% for p in parcelamentos %}
+    <div class="p-card">
+        <div class="p-info">
+            <div class="p-header">
+                <a href="{% url 'core:parcelamento_detalhe' p.pk %}" style="text-decoration: none; flex: 1;">
+                    <div class="p-title">
+                        <div class="p-category">{{ p.categoria.nome }}</div>
+                        <h3 style="display: flex; align-items: center; gap: 0.5rem;">
+                            {{ p.nome }}
+                            <i data-lucide="external-link" style="width: 14px; opacity: 0.5;"></i>
+                        </h3>
+                    </div>
+                </a>
+                <span class="badge badge-{% if p.status == 'ativo' %}warning{% else %}success{% endif %}" style="font-size: 0.7rem;">
+                    {{ p.get_status_display }}
+                </span>
+            </div>
+
+            <div class="p-stats">
+                <div class="p-stat-item">
+                    <div class="p-stat-label">Total</div>
+                    <div class="p-stat-value">R$ {{ p.valor_total|floatformat:2 }}</div>
+                </div>
+                <div class="p-stat-item">
+                    <div class="p-stat-label">Parcela</div>
+                    <div class="p-stat-value">R$ {{ p.valor_parcela|floatformat:2 }}</div>
+                </div>
+            </div>
+            
+            <div style="font-size: 0.8125rem; color: var(--text-muted); display: flex; align-items: center; gap: 0.4rem;">
+                <i data-lucide="calendar" style="width: 14px;"></i>
+                Início: {{ p.data_inicio|date:"M/Y" }}
+            </div>
+        </div>
+
+        <div class="p-chart-container">
+            <canvas id="chart-{{ p.pk }}" 
+                    data-pagas="{{ p.parcelas_pagas }}" 
+                    data-totais="{{ p.total_parcelas }}"
+                    data-status="{{ p.status }}"></canvas>
+            <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; pointer-events: none;">
+                <div style="font-size: 0.875rem; font-weight: 800; color: var(--text-main);">{{ p.parcelas_pagas }}/{{ p.total_parcelas }}</div>
+                <div style="font-size: 0.65rem; color: var(--text-muted); font-weight: 600;">PAGAS</div>
+            </div>
+        </div>
+
+        <div class="p-footer">
+            <div class="p-obs">
+                {% if p.observacao %}<i data-lucide="info" style="width: 12px; display: inline; vertical-align: middle;"></i> {{ p.observacao|truncatechars:30 }}{% else %}Sem observações{% endif %}
+            </div>
+            <div style="display: flex; gap: 1rem; align-items: center;">
+                <a href="javascript:void(0)" onclick="openEditModal('{{ p.pk }}', '{{ p.nome }}', '{{ p.categoria.id }}', '{{ p.valor_total }}', '{{ p.valor_parcela }}', '{{ p.total_parcelas }}', '{{ p.data_inicio|date:'Y-m-d' }}', '{{ p.observacao|default:'' }}')" style="color: var(--primary);" title="Editar">
+                    <i data-lucide="edit-3" style="width: 18px;"></i>
+                </a>
+                <a href="{% url 'core:parcelamento_delete' p.pk %}" class="btn-delete" onclick="return confirm('Excluir este parcelamento?')" title="Excluir">
+                    <i data-lucide="trash-2" style="width: 18px;"></i>
+                </a>
+            </div>
+        </div>
+    </div>
+    {% empty %}
+    <div class="card" style="grid-column: 1 / -1; text-align: center; padding: 4rem;">
+        <i data-lucide="layers" style="width: 48px; height: 48px; color: var(--border); margin-bottom: 1rem;"></i>
+        <p style="color: var(--text-muted);">Nenhum parcelamento encontrado. Comece clicando em "Novo Parcelamento".</p>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Modal Novo Parcelamento -->
+<div id="modal-novo-parcelamento" class="modal">
+    <div class="modal-content">
+        <a href="#" class="modal-close"><i data-lucide="x"></i></a>
+        <h2 style="margin-bottom: 1.5rem;">Cadastrar Parcelamento</h2>
+        <form action="{% url 'core:parcelamentos_list' %}" method="post">
+            {% csrf_token %}
+            {% for field in form %}
+            <div class="form-group">
+                <label>{{ field.label }}</label>
+                {{ field }}
+            </div>
+            {% endfor %}
+            <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 1rem; justify-content: center;">Salvar Parcelamento</button>
+        </form>
+    </div>
+</div>
+
+<!-- Modal Editar Parcelamento -->
+<div id="modal-editar-parcelamento" class="modal">
+    <div class="modal-content">
+        <a href="#" class="modal-close"><i data-lucide="x"></i></a>
+        <h2 style="margin-bottom: 1.5rem;">Editar Parcelamento</h2>
+        <form id="edit-p-form" action="" method="post">
+            {% csrf_token %}
+            <div class="form-group">
+                <label>Nome</label>
+                <input type="text" name="nome" id="id_nome_edit" class="form-control" required>
+            </div>
+            <div class="form-group">
+                <label>Categoria</label>
+                <select name="categoria" id="id_categoria_edit" class="form-control" required>
+                    {% for cat in form.fields.categoria.queryset %}
+                    <option value="{{ cat.id }}">{{ cat.nome }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                <div class="form-group">
+                    <label>Valor Total</label>
+                    <input type="number" name="valor_total" id="id_valor_total_edit" class="form-control" step="0.01" required>
+                </div>
+                <div class="form-group">
+                    <label>Valor Parcela</label>
+                    <input type="number" name="valor_parcela" id="id_valor_parcela_edit" class="form-control" step="0.01" required>
+                </div>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                <div class="form-group">
+                    <label>Total Parcelas</label>
+                    <input type="number" name="total_parcelas" id="id_total_parcelas_edit" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label>Data Início</label>
+                    <input type="date" name="data_inicio" id="id_data_inicio_edit" class="form-control" required>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Observação</label>
+                <textarea name="observacao" id="id_observacao_edit" class="form-control" rows="3"></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 1rem; justify-content: center;">Salvar Alterações</button>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Inicialização de Gráficos de Pizza
+        document.querySelectorAll('canvas[id^="chart-"]').forEach(canvas => {
+            const pagas = parseInt(canvas.dataset.pagas);
+            const totais = parseInt(canvas.dataset.totais);
+            const restantes = totais - pagas;
+            const status = canvas.dataset.status;
+
+            const color = status === 'ativo' ? '#3b82f6' : '#10b981';
+
+            new Chart(canvas, {
+                type: 'doughnut',
+                data: {
+                    datasets: [{
+                        data: [pagas, restantes],
+                        backgroundColor: [color, 'rgba(0,0,0,0.05)'],
+                        borderWidth: 0,
+                        hoverOffset: 0
+                    }]
+                },
+                options: {
+                    cutout: '80%',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: { enabled: false }
+                    },
+                    animation: {
+                        duration: 2000,
+                        easing: 'easeOutQuart'
+                    }
+                }
+            });
+        });
+
+        const totalInput = document.getElementById('id_valor_total');
+        const parcelaInput = document.getElementById('id_valor_parcela');
+        const numInput = document.getElementById('id_total_parcelas');
+
+        function calculateParcela() {
+            const total = parseFloat(totalInput.value);
+            const num = parseInt(numInput.value);
+            if (total && num && num > 0) {
+                parcelaInput.value = (total / num).toFixed(2);
+            }
+        }
+
+        function calculateTotal() {
+            const parcela = parseFloat(parcelaInput.value);
+            const num = parseInt(numInput.value);
+            if (parcela && num && num > 0) {
+                totalInput.value = (parcela * num).toFixed(2);
+            }
+        }
+
+        if (totalInput && parcelaInput && numInput) {
+            totalInput.addEventListener('input', calculateParcela);
+            numInput.addEventListener('input', calculateParcela);
+            parcelaInput.addEventListener('input', calculateTotal);
+        }
+    });
+
+    function openEditModal(pk, nome, catId, total, parcela, num, data, obs) {
+        const form = document.getElementById('edit-p-form');
+        form.action = `/parcelamentos/${pk}/editar/`;
+        
+        document.getElementById('id_nome_edit').value = nome;
+        document.getElementById('id_categoria_edit').value = catId;
+        document.getElementById('id_valor_total_edit').value = total.replace(',', '.');
+        document.getElementById('id_valor_parcela_edit').value = parcela.replace(',', '.');
+        document.getElementById('id_total_parcelas_edit').value = num;
+        document.getElementById('id_data_inicio_edit').value = data;
+        document.getElementById('id_observacao_edit').value = obs;
+
+        window.location.hash = 'modal-editar-parcelamento';
+    }
+</script>
+{% endblock %}
