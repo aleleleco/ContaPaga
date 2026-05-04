@@ -113,6 +113,24 @@
             <i data-lucide="trending-down"></i>
         </div>
     </div>
+    <div class="stat-card">
+        <div class="stat-info">
+            <h3>Total Recebido (Salário)</h3>
+            <div class="value" style="color: var(--success);">R$ {{ stats.total_salarios|floatformat:2 }}</div>
+        </div>
+        <div class="stat-icon success">
+            <i data-lucide="banknote"></i>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-info">
+            <h3>Outras Receitas</h3>
+            <div class="value" style="color: var(--primary);">R$ {{ stats.outras_receitas|floatformat:2 }}</div>
+        </div>
+        <div class="stat-icon" style="background-color: #eff6ff; color: var(--primary);">
+            <i data-lucide="arrow-up-right"></i>
+        </div>
+    </div>
 </div>
 
 <div class="content-grid">

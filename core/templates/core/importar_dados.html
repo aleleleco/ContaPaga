@@ -115,15 +115,29 @@
         <form action="{% url 'core:importar_dados' %}" method="post" enctype="multipart/form-data" id="ofx-form" onsubmit="document.getElementById('loading-overlay').style.display = 'flex';">
             {% csrf_token %}
             
-            <div class="form-group" style="margin-bottom: 1.5rem; max-width: 400px;">
-                <label style="font-weight: 700; display: block; margin-bottom: 0.5rem;">Vincular ao Agente Pagador <span style="color: var(--danger);">*</span></label>
-                <select name="agente_id" class="form-control" required>
-                    <option value="">Selecione quem é o dono deste extrato...</option>
-                    {% for agente in agentes %}
-                    <option value="{{ agente.id }}">{{ agente.nome }} (Salário: R$ {{ agente.salario|floatformat:2 }})</option>
-                    {% endfor %}
-                </select>
-                <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">Todas as transações lidas serão atribuídas a este agente.</p>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem;">
+                <div class="form-group" style="margin: 0;">
+                    <label style="font-weight: 700; display: block; margin-bottom: 0.5rem;">Agente Pagador <span style="color: var(--danger);">*</span></label>
+                    <select name="agente_id" class="form-control" required onchange="filterBankAccounts(this.value)">
+                        <option value="">Selecione o agente...</option>
+                        {% for agente in agentes %}
+                        <option value="{{ agente.id }}">{{ agente.nome }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group" style="margin: 0;">
+                    <label style="font-weight: 700; display: block; margin-bottom: 0.5rem;">Conta Bancária <span style="color: var(--danger);">*</span></label>
+                    <select name="conta_bancaria_id" id="conta_bancaria_select" class="form-control" required>
+                        <option value="">Selecione a conta...</option>
+                        {% for agente in agentes %}
+                            {% for conta in agente.contas_bancarias.all %}
+                            <option value="{{ conta.id }}" data-agente="{{ agente.id }}" class="conta-option" style="display: none;">
+                                {{ conta.banco }} - {{ conta.conta }}
+                            </option>
+                            {% endfor %}
+                        {% endfor %}
+                    </select>
+                </div>
             </div>
 
             <div class="upload-area" onclick="document.getElementById('ofx-input').click()">
@@ -131,12 +145,61 @@
                 <p style="font-weight: 600;">Clique para selecionar um ou mais arquivos .ofx</p>
                 <p style="font-size: 0.875rem; color: var(--text-muted);">Formatos aceitos: .ofx</p>
                 <input type="file" name="ofx_files" id="ofx-input" multiple accept=".ofx" style="display: none;" 
-                    onchange="if(document.getElementsByName('agente_id')[0].value){ document.getElementById('ofx-form').dispatchEvent(new Event('submit')); this.form.submit(); } else { alert('Selecione um Agente Pagador primeiro!'); this.value=''; }">
+                    onchange="if(document.getElementsByName('agente_id')[0].value && document.getElementById('conta_bancaria_select').value){ document.getElementById('ofx-form').dispatchEvent(new Event('submit')); this.form.submit(); } else { alert('Selecione um Agente e uma Conta primeiro!'); this.value=''; }">
             </div>
         </form>
 
-        {% if ofx_results %}
+        {% if transacoes or current_tab != 'pendentes' or agente_id_filter or conta_id_filter %}
         <div style="margin-top: 2.5rem;">
+            <!-- Filtros Avançados -->
+            <div class="card" style="margin-bottom: 1.5rem; padding: 1.25rem;">
+                <form method="get" id="filter-form" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; align-items: flex-end;">
+                    <input type="hidden" name="tab" value="{{ current_tab }}">
+                    <div class="form-group" style="margin: 0;">
+                        <label style="font-size: 0.75rem; color: var(--text-muted); font-weight: 700;">Filtrar por Agente</label>
+                        <select name="agente_id" class="form-control" onchange="this.form.submit()">
+                            <option value="">Todos os Agentes</option>
+                            {% for agente in agentes %}
+                            <option value="{{ agente.id }}" {% if agente_id_filter == agente.id|stringformat:"s" %}selected{% endif %}>{{ agente.nome }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin: 0;">
+                        <label style="font-size: 0.75rem; color: var(--text-muted); font-weight: 700;">Filtrar por Conta Bancária</label>
+                        <select name="conta_id" class="form-control" onchange="this.form.submit()">
+                            <option value="">Todas as Contas</option>
+                            {% for cb in contas_bancarias %}
+                            <option value="{{ cb.id }}" {% if conta_id_filter == cb.id|stringformat:"s" %}selected{% endif %}>{{ cb.agente.nome }} - {{ cb.banco }} ({{ cb.conta }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <button type="submit" class="btn btn-primary" style="flex: 1; justify-content: center;">Filtrar</button>
+                        <a href="{% url 'core:importar_dados' %}" class="btn" style="border: 1px solid var(--border); background: white;">Limpar</a>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Navegação por Abas -->
+            <div style="display: flex; gap: 0.5rem; margin-bottom: 1.5rem; overflow-x: auto; padding-bottom: 0.5rem;">
+                <a href="?tab=pendentes{% if agente_id_filter %}&agente_id={{ agente_id_filter }}{% endif %}{% if conta_id_filter %}&conta_id={{ conta_id_filter }}{% endif %}" 
+                   class="btn" style="background: {% if current_tab == 'pendentes' %}var(--primary){% else %}white{% endif %}; color: {% if current_tab == 'pendentes' %}white{% else %}var(--text-main){% endif %}; border: 1px solid {% if current_tab == 'pendentes' %}var(--primary){% else %}var(--border){% endif %}; white-space: nowrap;">
+                    <i data-lucide="list-todo"></i> Pendentes
+                </a>
+                <a href="?tab=validados{% if agente_id_filter %}&agente_id={{ agente_id_filter }}{% endif %}{% if conta_id_filter %}&conta_id={{ conta_id_filter }}{% endif %}" 
+                   class="btn" style="background: {% if current_tab == 'validados' %}#10b981{% else %}white{% endif %}; color: {% if current_tab == 'validados' %}white{% else %}var(--text-main){% endif %}; border: 1px solid {% if current_tab == 'validados' %}#10b981{% else %}var(--border){% endif %}; white-space: nowrap;">
+                    <i data-lucide="check-circle-2"></i> Validados
+                </a>
+                <a href="?tab=processados{% if agente_id_filter %}&agente_id={{ agente_id_filter }}{% endif %}{% if conta_id_filter %}&conta_id={{ conta_id_filter }}{% endif %}" 
+                   class="btn" style="background: {% if current_tab == 'processados' %}#6366f1{% else %}white{% endif %}; color: {% if current_tab == 'processados' %}white{% else %}var(--text-main){% endif %}; border: 1px solid {% if current_tab == 'processados' %}#6366f1{% else %}var(--border){% endif %}; white-space: nowrap;">
+                    <i data-lucide="history"></i> Já Importados
+                </a>
+                <a href="?tab=ignorar{% if agente_id_filter %}&agente_id={{ agente_id_filter }}{% endif %}{% if conta_id_filter %}&conta_id={{ conta_id_filter }}{% endif %}" 
+                   class="btn" style="background: {% if current_tab == 'ignorar' %}#94a3b8{% else %}white{% endif %}; color: {% if current_tab == 'ignorar' %}white{% else %}var(--text-main){% endif %}; border: 1px solid {% if current_tab == 'ignorar' %}#94a3b8{% else %}var(--border){% endif %}; white-space: nowrap;">
+                    <i data-lucide="archive"></i> Ignorados/Transferências
+                </a>
+            </div>
+
             <!-- Barra de Ações em Massa -->
             <div id="bulk-toolbar" style="display: none; background: var(--primary); color: white; padding: 0.75rem 1.5rem; border-radius: 12px; margin-bottom: 1rem; align-items: center; justify-content: space-between; position: sticky; top: 1rem; z-index: 100; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);">
                 <div style="display: flex; align-items: center; gap: 1rem;">
@@ -150,6 +213,9 @@
                     <button class="btn" style="background: white; color: var(--primary); padding: 0.4rem 0.8rem; font-size: 0.8rem;" onclick="openBulkModal('conta')">
                         Vincular Conta
                     </button>
+                    <button class="btn" style="background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.4); padding: 0.4rem 0.8rem; font-size: 0.8rem;" onclick="window.location.hash = 'modal-nova-conta-rapida'">
+                        + Criar Nova Conta
+                    </button>
                     <button class="btn" style="background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.4); padding: 0.4rem 0.8rem; font-size: 0.8rem;" onclick="unselectAll()">
                         Cancelar
                     </button>
@@ -157,168 +223,100 @@
             </div>
 
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                <h3 style="font-weight: 700;">Transações em Staging ({{ ofx_results|length }})</h3>
+                <h3 style="font-weight: 700;">
+                    {% if current_tab == 'pendentes' %}Pendentes de Vínculo
+                    {% elif current_tab == 'validados' %}Prontos para Processar
+                    {% elif current_tab == 'processados' %}Histórico de Processados
+                    {% else %}Ignorados e Transferências
+                    {% endif %}
+                    ({{ transacoes|length }})
+                </h3>
                 <div style="display: flex; gap: 0.5rem;">
-                    <a href="{% url 'core:ofx_limpar_staging' %}" class="btn" style="background-color: white; border: 1px solid var(--border); color: var(--text-muted);" onclick="return confirm('Zerar staging?')">
-                        <i data-lucide="trash-2"></i> Limpar
-                    </a>
-                    <a href="{% url 'core:ofx_validar' %}" class="btn" style="background-color: #f59e0b; color: white;">
-                        <i data-lucide="shield-check"></i> Validar Arquivo
-                    </a>
-                    <a href="{% url 'core:processar_vinculados' %}" class="btn btn-primary">
-                        <i data-lucide="zap"></i> Processar Lote
-                    </a>
+                    {% if current_tab != 'processados' %}
+                    <button class="btn btn-sm" onclick="toggleAllCheckboxes(true)" style="border: 1px solid var(--border); background: white;">Selecionar Tudo</button>
+                    <button class="btn btn-sm" onclick="toggleAllCheckboxes(false)" style="border: 1px solid var(--border); background: white;">Limpar Seleção</button>
+                    <a href="{% url 'core:ofx_limpar_staging' %}?tab={{ current_tab }}" class="btn btn-sm" style="color: var(--danger); border: 1px solid var(--danger); background: white;" onclick="return confirm('Deseja limpar todos os registros DESTA ABA?')">Limpar Aba</a>
+                    {% endif %}
                 </div>
             </div>
 
-            <!-- FILTROS -->
-            <div class="card" style="margin-bottom: 1rem; padding: 1rem; display: flex; gap: 1rem; flex-wrap: wrap; background-color: #f8fafc; border-style: dashed;">
-                <div class="form-group" style="margin-bottom: 0;">
-                    <label style="font-size: 0.75rem; font-weight: 700;">Buscar</label>
-                    <input type="text" id="filter-memo" class="form-control" style="font-size: 0.8rem;" placeholder="Filtro rápido..." onkeyup="applyFilters()">
-                </div>
-                <div class="form-group" style="margin-bottom: 0;">
-                    <label style="font-size: 0.75rem; font-weight: 700;">Valor Min.</label>
-                    <input type="number" id="filter-min-val" class="form-control" style="font-size: 0.8rem;" onkeyup="applyFilters()">
-                </div>
-                <div class="form-group" style="margin-bottom: 0;">
-                    <label style="font-size: 0.75rem; font-weight: 700;">Ordenar</label>
-                    <select id="sort-order" class="form-control" style="font-size: 0.8rem;" onchange="applyFilters()">
-                        <option value="date-desc">Data (Recente)</option>
-                        <option value="date-asc">Data (Antiga)</option>
-                        <option value="val-desc">Valor (Maior)</option>
-                        <option value="val-asc">Valor (Menor)</option>
-                    </select>
-                </div>
-            </div>
-
-            <div class="table-responsive">
+            <div class="card" style="padding: 0; overflow: hidden;">
                 <form id="bulk-form" action="{% url 'core:ofx_bulk_action' %}" method="post">
                     {% csrf_token %}
                     <input type="hidden" name="action_type" id="bulk-action-type">
                     <input type="hidden" name="target_id" id="bulk-target-id">
+                    <input type="hidden" name="current_tab" value="{{ current_tab }}">
 
                     <table class="ofx-table" id="transactions-table">
-                        <thead>
+                        <thead style="background: var(--bg-main);">
                             <tr>
+                                {% if current_tab != 'processados' %}
                                 <th style="width: 40px; text-align: center;">
-                                    <input type="checkbox" id="select-all" onclick="toggleAll(this.checked)">
+                                    <input type="checkbox" id="select-all" onclick="toggleAllCheckboxes(this.checked)">
                                 </th>
-                                <th>Status</th>
+                                {% endif %}
                                 <th>Data</th>
-                                <th>Descrição / Memo</th>
+                                <th>Descrição / FITID</th>
                                 <th>Valor</th>
-                                <th>Banco</th>
-                                <th>Categoria</th>
-                                <th>Vínculo (Conta)</th>
-                                <th>Ações</th>
+                                <th>Agente / Banco</th>
+                                <th>Status / Vínculo</th>
+                                <th style="text-align: right;">Ações</th>
                             </tr>
                         </thead>
                         <tbody id="transactions-body">
-                            {% for t in ofx_results %}
-                            <tr class="transaction-row" 
-                                data-date="{{ t.data|date:'Y-m-d' }}" 
-                                data-memo="{{ t.memo|lower }}" 
-                                data-val="{{ t.valor|floatformat:2|safe }}"
-                                style="{% if t.correspondencia %}background-color: #f8fafc;{% endif %}">
+                            {% for t in transacoes %}
+                            <tr style="{% if t.status == 'transferencia' %}opacity: 0.6; background: #f8fafc;{% endif %}" class="transaction-row">
+                                {% if current_tab != 'processados' %}
                                 <td style="text-align: center;">
-                                    <input type="checkbox" name="transacao_ids" value="{{ t.obj.id }}" class="row-checkbox" onclick="updateBulkToolbar()">
+                                    <input type="checkbox" name="transacao_ids" value="{{ t.id }}" class="row-checkbox" onclick="updateBulkToolbar()">
                                 </td>
+                                {% endif %}
+                                <td style="white-space: nowrap;">{{ t.data|date:"d/m/Y" }}</td>
                                 <td>
-                                    {% if t.obj.status == 'lido' %}
-                                    <span class="badge" style="background-color: #e2e8f0; color: #475569;">Lido</span>
-                                    {% elif t.obj.status == 'validado' %}
-                                    <span class="badge" style="background-color: #dcfce7; color: #166534;">Validado</span>
-                                    {% endif %}
+                                    <div style="font-weight: 600; color: var(--text-main);">{{ t.descricao }}</div>
+                                    <div style="font-size: 0.75rem; color: var(--text-muted); font-family: monospace;">{{ t.fitid }}</div>
                                 </td>
-                                <td>{{ t.data|date:"d/m/Y" }}</td>
-                                <td>
-                                    <div style="font-weight: 600; display: flex; align-items: center; gap: 0.4rem;">
-                                        {% if t.regra and t.regra.nome_exibicao %}
-                                            {{ t.regra.nome_exibicao }} <span style="font-weight: 400; font-size: 0.7rem; color: var(--text-muted);">({{ t.memo }})</span>
-                                        {% else %}
-                                            {{ t.memo }}
-                                        {% endif %}
-                                        {% if t.regra %}
-                                            <i data-lucide="sparkles" style="width: 14px; color: #3b82f6;" title="Regra Aplicada: {{ t.regra.padrao }}"></i>
-                                        {% endif %}
-                                    </div>
-                                    <div style="font-size: 0.7rem; color: var(--text-muted);">{{ t.arquivo }} | ID: {{ t.id }}</div>
-                                </td>
-                                <td style="font-weight: 700; color: {% if t.valor < 0 %}var(--danger){% else %}var(--success){% endif %};">
+                                <td style="font-weight: 700; color: {% if t.valor > 0 %}var(--success){% else %}var(--danger){% endif %}; white-space: nowrap;">
                                     R$ {{ t.valor|floatformat:2 }}
                                 </td>
                                 <td>
-                                    <div style="display: flex; align-items: center; gap: 0.5rem;">
-                                        <div style="background-color: {{ t.banco.color }}; color: white; padding: 0.35rem; border-radius: 8px; display: flex;">
-                                            <i data-lucide="{{ t.banco.icon }}" style="width: 14px; height: 14px;"></i>
-                                        </div>
-                                        <span style="font-size: 0.8rem; font-weight: 600;">{{ t.banco.name }}</span>
-                                    </div>
+                                    <div style="font-size: 0.8rem; font-weight: 600;">{{ t.arquivo.agente.nome }}</div>
+                                    <div style="font-size: 0.7rem; color: var(--text-muted);">{{ t.arquivo.banco_nome }}</div>
                                 </td>
                                 <td>
-                                    <select class="form-control category-select" style="font-size: 0.75rem; padding: 0.25rem;" 
-                                        onchange="updateCategory('{{ t.obj.id }}', this.value)"
-                                        {% if t.correspondencia %}disabled{% endif %}>
-                                        <option value="">Selecione...</option>
-                                        <optgroup label="Receitas (Entradas)">
-                                            {% for cat in categorias_entrada %}
-                                            <option value="{{ cat.id }}" 
-                                                {% if t.obj.categoria_manual and t.obj.categoria_manual.id == cat.id %}selected
-                                                {% elif not t.obj.categoria_manual and t.correspondencia and t.correspondencia.categoria.id == cat.id %}selected
-                                                {% elif not t.obj.categoria_manual and not t.correspondencia and t.regra and t.regra.categoria.id == cat.id %}selected{% endif %}>
-                                                {{ cat.nome }}
-                                            </option>
-                                            {% endfor %}
-                                        </optgroup>
-                                        <optgroup label="Gastos (Saídas)">
-                                            {% for cat in categorias_saida %}
-                                            <option value="{{ cat.id }}" 
-                                                {% if t.obj.categoria_manual and t.obj.categoria_manual.id == cat.id %}selected
-                                                {% elif not t.obj.categoria_manual and t.correspondencia and t.correspondencia.categoria.id == cat.id %}selected
-                                                {% elif not t.obj.categoria_manual and not t.correspondencia and t.regra and t.regra.categoria.id == cat.id %}selected{% endif %}>
-                                                {{ cat.nome }}
-                                            </option>
-                                            {% endfor %}
-                                        </optgroup>
-                                    </select>
-                                </td>
-                                <td>
-                                    {% if t.correspondencia %}
-                                    <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; padding: 0.4rem 0.6rem; border-radius: 8px; display: flex; align-items: center; gap: 0.5rem;">
-                                        <i data-lucide="link" style="width: 14px; color: #166534;"></i>
-                                        <div>
-                                            <div style="font-size: 0.8rem; font-weight: 700; color: #166534;">
-                                                {{ t.correspondencia.nome }}
-                                            </div>
-                                        </div>
-                                    </div>
+                                    {% if t.status == 'transferencia' %}
+                                        <span class="badge" style="background: #e2e8f0; color: #475569;">TRANSFERÊNCIA</span>
+                                    {% elif t.status == 'ignorado' %}
+                                        <span class="badge" style="background: #fee2e2; color: #991b1b;">IGNORADO</span>
+                                    {% elif t.status == 'processado' %}
+                                        <span class="badge badge-success">PROCESSADO</span>
+                                        <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 2px;">Vínculo: {{ t.lancamento_criado.conta.nome }}</div>
+                                    {% elif t.conta_sugerida %}
+                                        <span class="badge" style="background: #dcfce7; color: #166534;">VINCULADO</span>
+                                        <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 2px;">{{ t.conta_sugerida.nome }}</div>
+                                    {% elif t.categoria_manual %}
+                                        <span class="badge" style="background: #e0f2fe; color: #0369a1;">SUGESTÃO: {{ t.categoria_manual.nome }}</span>
                                     {% else %}
-                                    <div style="color: var(--text-muted); font-size: 0.75rem; font-style: italic; display: flex; align-items: center; gap: 0.25rem;">
-                                        <i data-lucide="help-circle" style="width: 12px;"></i> Sem vínculo
-                                    </div>
+                                        <span class="badge badge-warning">AGUARDANDO</span>
                                     {% endif %}
                                 </td>
-                                <td>
-                                    <div style="display: flex; gap: 0.25rem;">
-                                        {% if not t.correspondencia %}
-                                        <button type="button" class="btn" style="padding: 0.35rem 0.75rem; font-size: 0.75rem; background-color: var(--primary); color: white;" onclick="openVincularModal('{{ t.obj.id }}', '{{ t.memo }}', '{{ t.valor }}')">
-                                            Vincular
-                                        </button>
+                                <td style="text-align: right;">
+                                    <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
+                                        {% if t.status == 'processado' %}
+                                            <a href="{% url 'core:dashboard' %}?comp_id={{ t.lancamento_criado.competencia.id }}" class="btn btn-sm" title="Ver Lançamento" style="padding: 0.25rem 0.5rem;"><i data-lucide="eye" style="width: 14px;"></i></a>
                                         {% else %}
-                                        <div style="display: flex; flex-direction: column; gap: 0.25rem; width: 100%;">
-                                            <button type="button" class="btn" style="background-color: #10b981; color: white; padding: 0.25rem; font-size: 0.7rem; width: 100%;" onclick="alert('Confirmado para o processamento final.')">
-                                                <i data-lucide="check" style="width: 12px;"></i> Confirmar
-                                            </button>
-                                            <a href="{% url 'core:ofx_desvincular' t.obj.id %}" class="btn" style="background-color: white; border: 1px solid var(--border); color: var(--danger); padding: 0.25rem; font-size: 0.7rem; width: 100%; text-align: center; text-decoration: none;" onclick="return confirm('Deseja realmente desvincular esta conta?')">
-                                                <i data-lucide="unlink" style="width: 12px;"></i> Desvincular
-                                            </a>
-                                            <button type="button" class="btn" style="background-color: white; border: 1px solid var(--border); color: var(--text-muted); padding: 0.25rem; font-size: 0.7rem; width: 100%;" onclick="openVincularModal('{{ t.obj.id }}', '{{ t.memo }}', '{{ t.valor }}')">
-                                                Trocar
-                                            </button>
-                                        </div>
+                                            <button type="button" onclick="openVincularModal('{{ t.id }}', '{{ t.descricao|addslashes }}', '{{ t.valor|safe }}', '{{ t.conta_sugerida.id|default:'' }}', '{{ t.categoria_manual.id|default:'' }}')" class="btn btn-sm" title="Vincular Conta" style="padding: 0.25rem 0.5rem; border: 1px solid var(--border); background: white;"><i data-lucide="link" style="width: 14px;"></i></button>
+                                            {% if t.conta_sugerida %}
+                                            <a href="{% url 'core:ofx_desvincular' t.pk %}?tab={{ current_tab }}" class="btn btn-sm" title="Remover Vínculo" style="padding: 0.25rem 0.5rem; border: 1px solid var(--border); background: white; color: var(--danger);"><i data-lucide="link-2-off" style="width: 14px;"></i></a>
+                                            {% endif %}
                                         {% endif %}
                                     </div>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="7" style="text-align: center; padding: 4rem; color: var(--text-muted);">
+                                    Nenhum registro encontrado nesta aba.
                                 </td>
                             </tr>
                             {% endfor %}
@@ -326,8 +324,75 @@
                     </table>
                 </form>
             </div>
+
+            {% if current_tab == 'validados' and transacoes %}
+            <div style="margin-top: 1.5rem; text-align: center;">
+                <a href="{% url 'core:processar_vinculados' %}" class="btn btn-primary" style="padding: 0.75rem 2rem; font-size: 1rem;">
+                    <i data-lucide="play"></i> Processar e Criar Lançamentos na Competência
+                </a>
+                <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.5rem;">Isso criará registros oficiais nas competências correspondentes.</p>
+            </div>
+            {% endif %}
+        </div>
+        {% elif not transacoes and not agente_id_filter and not conta_id_filter %}
+        <!-- Estado Vazio -->
+        <div class="card" style="text-align: center; padding: 4rem 2rem; margin-top: 2rem;">
+            <i data-lucide="upload-cloud" style="width: 64px; height: 64px; color: var(--text-muted); margin-bottom: 1.5rem;"></i>
+            <h2 style="font-weight: 700; color: var(--text-main); margin-bottom: 0.5rem;">Nenhum arquivo importado</h2>
+            <p style="color: var(--text-muted); max-width: 500px; margin: 0 auto;">Selecione um Agente e uma Conta acima e arraste seus arquivos OFX para começar a conciliação bancária.</p>
         </div>
         {% endif %}
+    </div>
+</div>
+
+<!-- Modal Criar Nova Conta (Rápido) -->
+<div id="modal-nova-conta-rapida" class="modal">
+    <div class="modal-content">
+        <a href="#" class="modal-close"><i data-lucide="x"></i></a>
+        <h2 style="margin-bottom: 1.5rem;">Cadastrar Nova Conta de Gasto/Receita</h2>
+        <form action="{% url 'core:conta_create' %}" method="post">
+            {% csrf_token %}
+            <div class="form-group">
+                <label>Nome da Conta</label>
+                <input type="text" name="nome" class="form-control" placeholder="Ex: Aluguel, Supermercado..." required>
+            </div>
+            <div class="form-group">
+                <label>Categoria</label>
+                <select name="categoria" class="form-control" required>
+                    <option value="">-- Selecione --</option>
+                    <optgroup label="Receitas">
+                        {% for cat in categorias_entrada %}
+                        <option value="{{ cat.id }}">{{ cat.nome }}</option>
+                        {% endfor %}
+                    </optgroup>
+                    <optgroup label="Gastos">
+                        {% for cat in categorias_saida %}
+                        <option value="{{ cat.id }}">{{ cat.nome }}</option>
+                        {% endfor %}
+                    </optgroup>
+                </select>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                <div class="form-group">
+                    <label>Tipo</label>
+                    <select name="tipo" class="form-control">
+                        <option value="esporadica">Esporádica</option>
+                        <option value="fixa">Fixa</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Dia Vencimento</label>
+                    <input type="number" name="dia_vencimento" class="form-control" value="1" min="1" max="31">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Valor Padrão (Opcional)</label>
+                <input type="number" name="valor_padrao" class="form-control" step="0.01" value="0.00">
+            </div>
+            <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 1.5rem; justify-content: center;">
+                Criar e Salvar Conta
+            </button>
+        </form>
     </div>
 </div>
 
@@ -495,67 +560,32 @@
         window.location.hash = tabId;
     }
 
-    function applyFilters() {
-        const memo = document.getElementById('filter-memo').value.toLowerCase();
-        const minVal = parseFloat(document.getElementById('filter-min-val').value) || 0;
-        const sort = document.getElementById('sort-order').value;
-        const rows = Array.from(document.querySelectorAll('.transaction-row'));
-        const container = document.getElementById('transactions-body');
-
-        rows.forEach(row => {
-            const rowMemo = row.dataset.memo;
-            const rowVal = Math.abs(parseFloat(row.dataset.val));
-            const matchesMemo = rowMemo.includes(memo);
-            const matchesVal = rowVal >= minVal;
-            row.style.display = (matchesMemo && matchesVal) ? '' : 'none';
-        });
-
-        rows.sort((a, b) => {
-            if (sort === 'date-asc') return new Date(a.dataset.date) - new Date(b.dataset.date);
-            if (sort === 'date-desc') return new Date(b.dataset.date) - new Date(a.dataset.date);
-            if (sort === 'val-asc') return parseFloat(a.dataset.val) - parseFloat(b.dataset.val);
-            if (sort === 'val-desc') return parseFloat(b.dataset.val) - parseFloat(a.dataset.val);
-            return 0;
-        });
-
-        rows.forEach(row => container.appendChild(row));
-    }
-
-    function openVincularModal(id, memo, valor) {
+    function openVincularModal(id, memo, valor, contaId, categoriaId) {
         const modal = document.getElementById('modal-vincular');
         const form = document.getElementById('vincular-form');
         const memoEl = document.getElementById('vincular-memo');
         const valorEl = document.getElementById('vincular-valor');
+        const selectConta = document.getElementById('select-vincular-conta');
         
         memoEl.innerText = memo;
         valorEl.innerText = 'R$ ' + parseFloat(valor).toLocaleString('pt-BR', {minimumFractionDigits: 2});
-        form.action = `/ofx/vincular/${id}/`;
+        form.action = `/ofx/vincular/${id}/?tab={{ current_tab }}`;
+        
+        if (contaId) selectConta.value = contaId;
+        else selectConta.value = "";
         
         window.location.hash = 'modal-vincular';
     }
 
-    function updateCategory(transacaoId, categoriaId) {
-        const formData = new FormData();
-        formData.append('categoria_id', categoriaId);
-        formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
-        
-        fetch(`/ofx/update-categoria/${transacaoId}/`, {
-            method: 'POST',
-            body: formData
-        }).then(response => {
-            if (!response.ok) alert('Erro ao atualizar categoria.');
-        });
-    }
-
     // Bulk Actions
-    function toggleAll(checked) {
+    function toggleAllCheckboxes(checked) {
         document.querySelectorAll('.row-checkbox').forEach(cb => cb.checked = checked);
+        if (document.getElementById('select-all')) document.getElementById('select-all').checked = checked;
         updateBulkToolbar();
     }
 
     function unselectAll() {
-        document.getElementById('select-all').checked = false;
-        toggleAll(false);
+        toggleAllCheckboxes(false);
     }
 
     function updateBulkToolbar() {
@@ -607,10 +637,24 @@
         document.getElementById('bulk-form').submit();
     }
 
+    function filterBankAccounts(agenteId) {
+        const select = document.getElementById('conta_bancaria_select');
+        const options = select.querySelectorAll('.conta-option');
+        
+        select.value = "";
+        options.forEach(opt => {
+            if (opt.dataset.agente === agenteId) {
+                opt.style.display = 'block';
+            } else {
+                opt.style.display = 'none';
+            }
+        });
+    }
+
     window.addEventListener('load', () => {
         const hash = window.location.hash.substring(1);
         if (hash) {
-            if (hash === 'modal-vincular' || hash === 'modal-bulk') return;
+            if (hash.startsWith('modal-')) return;
             showTab(hash);
         }
     });

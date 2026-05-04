@@ -37,6 +37,7 @@ class Categoria(models.Model):
     ]
     nome = models.CharField(max_length=100, unique=True)
     tipo = models.CharField(max_length=10, choices=TIPO_CHOICES, default='saida')
+    is_salary = models.BooleanField(default=False, help_text="Marque se esta categoria representa recebimento de salário")
 
     def __str__(self):
         return f"{self.nome} ({self.get_tipo_display()})"
@@ -83,6 +84,38 @@ class AgentePagador(models.Model):
     
     def __str__(self):
         return self.nome
+
+class ContaBancaria(models.Model):
+    TIPO_CHOICES = [
+        ('corrente', 'Conta Corrente'),
+        ('poupanca', 'Conta Poupança'),
+        ('investimento', 'Conta Investimento'),
+        ('outros', 'Outros'),
+    ]
+    agente = models.ForeignKey(AgentePagador, on_delete=models.CASCADE, related_name='contas_bancarias')
+    banco = models.CharField(max_length=100)
+    agencia = models.CharField(max_length=20, blank=True, null=True)
+    conta = models.CharField(max_length=50)
+    tipo = models.CharField(max_length=20, choices=TIPO_CHOICES, default='corrente')
+    considerar_como_salario = models.BooleanField(default=False, help_text="Entradas nesta conta somam no salário do agente")
+    
+    def __str__(self):
+        return f"{self.banco} - {self.conta} ({self.agente.nome})"
+
+class ChavePix(models.Model):
+    TIPO_CHOICES = [
+        ('cpf', 'CPF'),
+        ('cnpj', 'CNPJ'),
+        ('email', 'E-mail'),
+        ('telefone', 'Telefone'),
+        ('aleatoria', 'Chave Aleatória'),
+    ]
+    conta_bancaria = models.ForeignKey(ContaBancaria, on_delete=models.CASCADE, related_name='chaves_pix')
+    tipo = models.CharField(max_length=20, choices=TIPO_CHOICES)
+    chave = models.CharField(max_length=255)
+
+    def __str__(self):
+        return f"{self.get_tipo_display()}: {self.chave}"
 
 class Lancamento(models.Model):
     STATUS_CHOICES = (
@@ -135,10 +168,11 @@ class OfxArquivo(models.Model):
     arquivo = models.FileField(upload_to='ofx_imports/')
     data_upload = models.DateTimeField(auto_now_add=True)
     agente = models.ForeignKey(AgentePagador, on_delete=models.CASCADE)
+    conta_bancaria = models.ForeignKey(ContaBancaria, on_delete=models.CASCADE, null=True, blank=True)
     banco_nome = models.CharField(max_length=50)
 
     def __str__(self):
-        return f"{self.banco_nome} - {self.data_upload}"
+        return f"{self.banco_nome} - {self.data_upload} ({self.agente.nome})"
 
 class OfxTransacao(models.Model):
     STATUS_CHOICES = [
@@ -146,6 +180,7 @@ class OfxTransacao(models.Model):
         ('validado', 'Validado'),
         ('processado', 'Processado'),
         ('ignorado', 'Ignorado'),
+        ('transferencia', 'Transferência Interna'),
     ]
     arquivo = models.ForeignKey(OfxArquivo, on_delete=models.CASCADE, related_name='transacoes')
     fitid = models.CharField(max_length=255, unique=True) # ID único do banco
@@ -158,7 +193,7 @@ class OfxTransacao(models.Model):
     # Vínculo temporário antes de processar
     conta_sugerida = models.ForeignKey(Conta, on_delete=models.SET_NULL, null=True, blank=True)
     categoria_manual = models.ForeignKey(Categoria, on_delete=models.SET_NULL, null=True, blank=True)
-    lancamento_criado = models.OneToOneField(Lancamento, on_delete=models.SET_NULL, null=True, blank=True)
+    lancamento_criado = models.ForeignKey(Lancamento, on_delete=models.SET_NULL, null=True, blank=True, related_name='ofx_transacoes')
 
     def __str__(self):
         return f"{self.data} - {self.descricao} (R$ {self.valor})"

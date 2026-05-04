@@ -79,11 +79,21 @@ contapaga/
 - [x] **Histórico de contas parceladas**: Novo relatório com histórico de parcelas pagas e a pagar.
 - [x] **Parâmetros do Sistema**: Nova tela para gerenciar categorias, contas e agentes sem o admin.
 - [x] **Agentes Pagadores**: Controle de salário e gastos por pessoa.
-- [ ] **importar ofx** Importação de extratos bancários no formato OFX.
+- [x] **Importação OFX**: Módulo profissional de importação de extratos bancários com staging e reconciliação.
 
+### ✅ Fase 8: Inteligência Bancária & Multicontas (Concluída)
+- [x] **Multicontas por Agente**: Suporte a múltiplos bancos e contas por pagador.
+- [x] **Gestão de Chaves PIX**: Cadastro e organização de chaves vinculadas às contas.
+- [x] **Detecção de Transferências**: Algoritmo para identificar e ignorar movimentações entre contas (evita duplicidade).
+- [x] **Salário Dinâmico**: Soma automática de receitas em contas marcadas como "Salário".
+- [x] **Ações em Massa**: Bulk actions para categorias e contas na área de staging.
+- [x] **Central de Conciliação Persistente**: Área de importação com abas de status (Pendentes, Validados, Processados, Ignorados).
 
+### Fase 9: Automação Avançada & Insights (Próximos Passos)
+- [ ] **Ajuste de Regras PIX**: Identificação inteligente de nomes em transações PIX para categorização automática.
+- [ ] **Relatório por Agente**: Visão detalhada do saldo individual (Receitas - Despesas) por pessoa na competência.
+- [ ] **Dashboard de Projeção**: Previsão de saldo final do mês baseado em contas pendentes e média de gastos.
+- [ ] **Notificações de Vencimento**: Alertas visuais para contas próximas do vencimento não pagas.
 
-
-
-## 🏁 Status Atual: **100% Concluído**
-Sistema totalmente operacional, estável e com design premium. Pronto para gestão financeira pessoal completa.
+## 🏁 Status Atual: **98% Operacional**
+O sistema agora possui um hub completo de reconciliação bancária persistente. Próximo foco é inteligência preditiva e relatórios individuais por agente.

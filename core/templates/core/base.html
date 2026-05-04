@@ -277,6 +277,17 @@
     </aside>
 
     <main>
+        {% if messages %}
+        <div class="messages-container" style="margin-bottom: 1.5rem;">
+            {% for message in messages %}
+            <div class="card" style="margin-bottom: 0.5rem; border-left: 4px solid {% if message.tags == 'success' %}var(--success){% elif message.tags == 'error' %}var(--danger){% else %}var(--warning){% endif %}; padding: 1rem; display: flex; align-items: center; gap: 1rem;">
+                <i data-lucide="{% if message.tags == 'success' %}check-circle{% elif message.tags == 'error' %}alert-circle{% else %}alert-triangle{% endif %}" style="color: {% if message.tags == 'success' %}var(--success){% elif message.tags == 'error' %}var(--danger){% else %}var(--warning){% endif %};"></i>
+                <div style="font-weight: 500;">{{ message }}</div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
         <header>
             <h1>{% block header_title %}Dashboard{% endblock %}</h1>
             <div class="header-actions" style="display: flex; gap: 0.5rem;">
