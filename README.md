@@ -82,7 +82,7 @@ O progresso detalhado do desenvolvimento pode ser acompanhado no arquivo `contap
 ---
 
 ## 📄 Licença
-Este projeto é de **uso estritamente pessoal e privado**. Veja o arquivo [LICENSE.md](LICENSE.md) para mais detalhes.
+Este projeto é de **uso livre para fins estritamente pessoais e não profissionais**. É proibida a comercialização ou o uso por empresas sem permissão. Veja o arquivo [LICENSE.md](LICENSE.md) para mais detalhes.
 
 ---
 **Desenvolvido por [Leleco]** - 2026
