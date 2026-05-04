@@ -1,0 +1,35 @@
+{% extends 'core/base.html' %}
+
+{% block title %}{% if edit %}Editar{% else %}Novo{% endif %} Lançamento - ContaPaga{% endblock %}
+
+{% block content %}
+<div style="max-width: 600px; margin: 0 auto;">
+    <div class="card">
+        <h2 style="font-size: 1.25rem; font-weight: 700; margin-bottom: 1.5rem;">
+            {% if edit %}Editar{% else %}Novo{% endif %} Lançamento
+        </h2>
+        
+        <form method="post">
+            {% csrf_token %}
+            
+            {% for field in form %}
+            <div class="form-group" style="margin-bottom: 1.25rem;">
+                <label style="font-weight: 600; display: block; margin-bottom: 0.5rem;">{{ field.label }}</label>
+                {{ field }}
+                {% if field.help_text %}
+                <small style="color: var(--text-muted);">{{ field.help_text }}</small>
+                {% endif %}
+                {% if field.errors %}
+                <div style="color: var(--danger); font-size: 0.8rem; margin-top: 0.25rem;">{{ field.errors }}</div>
+                {% endif %}
+            </div>
+            {% endfor %}
+            
+            <div style="display: flex; gap: 1rem; margin-top: 2rem;">
+                <button type="submit" class="btn btn-primary" style="flex: 1; justify-content: center;">Salvar Alterações</button>
+                <a href="{{ request.META.get.HTTP_REFERER|default:'/' }}" class="btn" style="flex: 1; justify-content: center; background-color: var(--bg-main); border: 1px solid var(--border);">Cancelar</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

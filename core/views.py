@@ -1,16 +1,17 @@
 from django.shortcuts import render, redirect, get_object_or_404, reverse
-from .models import Competencia, Lancamento, Conta, Categoria, Parcelamento, AgentePagador
+from .models import Competencia, Lancamento, Conta, Categoria, Parcelamento, AgentePagador, RegraImportacao, OfxArquivo, OfxTransacao
 from django.utils import timezone
 from datetime import date
 from django.db.models import Sum, Min
 from .services import importar_contas_fixas
-from .forms import ContaForm, LancamentoForm, PagamentoForm, ParcelamentoModelForm, AgentePagadorForm
+from .forms import ContaForm, LancamentoForm, PagamentoForm, ParcelamentoModelForm, AgentePagadorForm, RegraImportacaoForm
 from dateutil.relativedelta import relativedelta
 from django.http import HttpResponse
 from django.template.loader import get_template
 from xhtml2pdf import pisa
 import io
 import sqlite3
+from ofxparse import OfxParser
 
 def dashboard(request):
     now = timezone.now()
@@ -134,9 +135,27 @@ def pagamento_registrar(request, pk):
                     p.status = 'finalizado'
                 p.save()
             
-            return redirect(f"{reverse('core:dashboard')}?comp_id={lancamento.competencia.id}")
-                
-    return redirect('core:dashboard')
+            return redirect(reverse('core:dashboard') + f'?comp_id={lancamento.competencia.id}')
+    return render(request, 'core/pagamento_form.html', {'form': form, 'lancamento': lancamento})
+
+def lancamento_edit(request, pk):
+    lancamento = get_object_or_404(Lancamento, pk=pk)
+    if request.method == 'POST':
+        form = LancamentoForm(request.POST, instance=lancamento)
+        if form.is_valid():
+            form.save()
+            return redirect(reverse('core:dashboard') + f'?comp_id={lancamento.competencia.id}')
+    else:
+        form = LancamentoForm(instance=lancamento)
+    return render(request, 'core/lancamento_form.html', {'form': form, 'edit': True})
+
+def lancamento_delete(request, pk):
+    lancamento = get_object_or_404(Lancamento, pk=pk)
+    comp_id = lancamento.competencia.id
+    if request.method == 'POST':
+        lancamento.delete()
+        return redirect(reverse('core:dashboard') + f'?comp_id={comp_id}')
+    return render(request, 'core/confirm_delete.html', {'object': lancamento, 'type': 'Lançamento'})
 
 def relatorios(request):
     now = timezone.now()
@@ -351,6 +370,7 @@ def configuracoes(request):
     # Adiciona contagem de usos para segurança na exclusão
     for cat in categorias:
         cat.usos = Conta.objects.filter(categoria=cat).count() + Parcelamento.objects.filter(categoria=cat).count()
+    regras = RegraImportacao.objects.all().order_by('padrao')
     
     for conta in contas:
         conta.usos = Lancamento.objects.filter(conta=conta).count()
@@ -362,8 +382,10 @@ def configuracoes(request):
         'categorias': categorias,
         'contas': contas,
         'agentes': agentes,
+        'regras': regras,
         'form_conta': ContaForm(),
         'form_agente': AgentePagadorForm(),
+        'form_regra': RegraImportacaoForm(),
     }
     return render(request, 'core/configuracoes.html', context)
 
@@ -391,8 +413,9 @@ def agente_delete(request, pk):
 def categoria_create(request):
     if request.method == 'POST':
         nome = request.POST.get('nome')
+        tipo = request.POST.get('tipo', 'saida')
         if nome:
-            Categoria.objects.get_or_create(nome=nome)
+            Categoria.objects.get_or_create(nome=nome, defaults={'tipo': tipo})
     return redirect('core:configuracoes')
 
 def categoria_delete(request, pk):
@@ -400,6 +423,17 @@ def categoria_delete(request, pk):
     # Proteção: só deleta se não tiver nada vinculado
     if not Conta.objects.filter(categoria=categoria).exists() and not Parcelamento.objects.filter(categoria=categoria).exists():
         categoria.delete()
+    return redirect('core:configuracoes')
+def regra_create(request):
+    if request.method == 'POST':
+        form = RegraImportacaoForm(request.POST)
+        if form.is_valid():
+            form.save()
+    return redirect('core:configuracoes')
+
+def regra_delete(request, pk):
+    regra = get_object_or_404(RegraImportacao, pk=pk)
+    regra.delete()
     return redirect('core:configuracoes')
 
 def competencias_list(request):
@@ -451,80 +485,177 @@ def exportar_pdf(request, pk):
        return HttpResponse('Erro ao gerar PDF', status=500)
     return response
 
-def legacy_hub(request):
-    legado_path = r'E:\Gestor_Contas\db.sqlite3'
-    conn = sqlite3.connect(legado_path)
-    cursor = conn.cursor()
+def importar_dados(request):
+    ofx_results = []
+    agente_selecionado = None
     
-    # Busca IDs já migrados para marcar na interface
-    contas_migradas_ids = list(Conta.objects.filter(legacy_id__isnull=False).values_list('legacy_id', flat=True))
-    lancamentos_migrados_ids = list(Lancamento.objects.filter(legacy_id__isnull=False).values_list('legacy_id', flat=True))
-    parcelamentos_migrados_ids = list(Parcelamento.objects.filter(legacy_id__isnull=False).values_list('legacy_id', flat=True))
+    # 1. Processamento OFX (Se houver upload)
+    # 1. Processamento de OFX (Staging)
+    ofx_results = []
+    if request.method == 'POST' and request.FILES.getlist('ofx_files'):
+        agente_id = request.POST.get('agente_id')
+        if agente_id:
+            agente_selecionado = get_object_or_404(AgentePagador, id=agente_id)
+            
+        files = request.FILES.getlist('ofx_files')
+        if agente_selecionado:
+            for f in files:
+                # Salva o arquivo fisicamente
+                ofx_arq = OfxArquivo.objects.create(arquivo=f, agente=agente_selecionado, banco_nome='Detectando...')
+            
+                # Identificação do Banco pelo nome do arquivo
+                fname = f.name.lower()
+                bank_name = 'Banco'
+                if 'bradesco' in fname: bank_name = 'Bradesco'
+                elif 'nubank' in fname or 'nu bank' in fname or 'nu ' in fname or 'nu_' in fname or 'nu back' in fname: bank_name = 'Nubank'
+                elif 'itau' in fname: bank_name = 'Itaú'
+                elif 'santander' in fname: bank_name = 'Santander'
+                elif 'inter' in fname: bank_name = 'Inter'
+                
+                ofx_arq.banco_nome = bank_name
+                ofx_arq.save()
 
-    # Busca contas que ainda não foram migradas
-    cursor.execute("SELECT id, nome, data_vencimento, mensal, observacoes FROM gestor_contas_conta")
-    contas_legado = []
-    for row in cursor.fetchall():
-        contas_legado.append({
+                try:
+                    ofx = OfxParser.parse(f)
+                    statement = ofx.account.statement
+                    for transaction in statement.transactions:
+                        # Verifica se já existe pelo FITID (prevenção de duplicatas)
+                        if not OfxTransacao.objects.filter(fitid=transaction.id).exists():
+                            # Busca Sugestão por Regra
+                            sugestao_regra = None
+                            memo_upper = transaction.memo.upper()
+                            for regra in RegraImportacao.objects.all():
+                                if regra.padrao.upper() in memo_upper:
+                                    sugestao_regra = regra
+                                    break
+                            
+                            # Busca Sugestão por Conciliação (Data/Valor)
+                            match = None
+                            t_val = abs(float(transaction.amount))
+                            t_date = transaction.date.date()
+                            comp = Competencia.objects.filter(mes=t_date.month, ano=t_date.year).first()
+                            if comp:
+                                posiveis = Lancamento.objects.filter(competencia=comp)
+                                for p in posiveis:
+                                    p_val = float(p.valor_pago or p.valor_previsto)
+                                    if abs(t_val - p_val) < 1.0 and abs((t_date - p.vencimento).days) <= 3:
+                                        match = p
+                                        break
+
+                            OfxTransacao.objects.create(
+                                arquivo=ofx_arq,
+                                fitid=transaction.id,
+                                data=transaction.date,
+                                valor=transaction.amount,
+                                descricao=transaction.memo,
+                                tipo=transaction.type,
+                                status='lido',
+                                conta_sugerida=match.conta if match else None
+                            )
+                except Exception:
+                    continue
+        return redirect(reverse('core:importar_dados') + '#ofx')
+
+    # Busca transações pendentes para exibir
+    transacoes_pendentes = OfxTransacao.objects.filter(status__in=['lido', 'validado']).order_by('-data')
+    
+    # Prepara resultados para o template (mantendo a estrutura bank_info para ícones)
+    for t in transacoes_pendentes:
+        bank_info = {'name': t.arquivo.banco_nome, 'color': '#64748b', 'icon': 'landmark'}
+        bn = t.arquivo.banco_nome.lower()
+        if 'bradesco' in bn: bank_info = {'name': 'Bradesco', 'color': '#cc092f', 'icon': 'landmark'}
+        elif 'nubank' in bn: bank_info = {'name': 'Nubank', 'color': '#8a05be', 'icon': 'credit-card'}
+        elif 'itau' in bn: bank_info = {'name': 'Itaú', 'color': '#ec7000', 'icon': 'landmark'}
+        elif 'santander' in bn: bank_info = {'name': 'Santander', 'color': '#ec0000', 'icon': 'landmark'}
+        elif 'inter' in bn: bank_info = {'name': 'Inter', 'color': '#ff7a00', 'icon': 'landmark'}
+
+        # Regra de Importação (re-calculada para o template se necessário, ou guardada no obj)
+        regra_aplicada = None
+        for regra in RegraImportacao.objects.all():
+            if regra.padrao.upper() in t.descricao.upper():
+                regra_aplicada = regra
+                break
+
+        ofx_results.append({
+            'obj': t,
+            'data': t.data,
+            'valor': t.valor,
+            'memo': t.descricao,
+            'id': t.fitid,
+            'banco': bank_info,
+            'arquivo': t.arquivo.arquivo.name.split('/')[-1],
+            'tipo': t.tipo,
+            'agente': t.arquivo.agente,
+            'correspondencia': t.conta_sugerida, # Simplificado para o objeto Conta
+            'regra': regra_aplicada
+        })
+
+    # 2. Lógica Legado (Migrada do legacy_hub)
+    legado_path = r'E:\Gestor_Contas\db.sqlite3'
+    try:
+        conn = sqlite3.connect(legado_path)
+        cursor = conn.cursor()
+        
+        # Busca IDs já migrados
+        contas_migradas_ids = list(Conta.objects.filter(legacy_id__isnull=False).values_list('legacy_id', flat=True))
+        lancamentos_migrados_ids = list(Lancamento.objects.filter(legacy_id__isnull=False).values_list('legacy_id', flat=True))
+        parcelamentos_migrados_ids = list(Parcelamento.objects.filter(legacy_id__isnull=False).values_list('legacy_id', flat=True))
+
+        # Contas
+        cursor.execute("SELECT id, nome, data_vencimento, mensal, observacoes FROM gestor_contas_conta")
+        contas_legado = [{
             'id': row[0], 'nome': row[1], 'dia': row[2], 'mensal': row[3], 'obs': row[4],
             'migrada': row[0] in contas_migradas_ids
-        })
-            
-    # Busca lançamentos agrupados por competência
-    cursor.execute("""
-        SELECT cp.id, cp.data_pagamento, cp.valor_pago, c.nome, comp.mes, comp.ano, cp.comprovante, comp.id as comp_id
-        FROM gestor_contas_contapaga cp
-        JOIN gestor_contas_conta c ON cp.conta_id = c.id
-        JOIN gestor_contas_competencia comp ON cp.competencia_id = comp.id
-        ORDER BY comp.ano DESC, comp.mes DESC
-    """)
-    
-    competencias_dict = {}
-    for row in cursor.fetchall():
-        key = f"{row[4]}/{row[5]}" # MM/YYYY
-        if key not in competencias_dict:
-            competencias_dict[key] = {
-                'id': row[7],
-                'mes': row[4],
-                'ano': row[5],
-                'label': key,
-                'lancamentos': []
-            }
-        competencias_dict[key]['lancamentos'].append({
-            'id': row[0], 'data': row[1], 'valor': row[2], 'conta': row[3], 
-            'mes': row[4], 'ano': row[5], 'comprovante': row[6],
-            'migrado': row[0] in lancamentos_migrados_ids
-        })
+        } for row in cursor.fetchall()]
 
-    # Busca parcelamentos legados
-    cursor.execute("""
-        SELECT id, nome, qtd_parcelas, valor_total 
-        FROM gestor_contas_conta 
-        WHERE parcelas = 1
-    """)
-    parcelamentos_legado = []
-    for row in cursor.fetchall():
-        # Busca quantas parcelas já foram pagas no legado
-        cursor.execute("SELECT COUNT(*) FROM gestor_contas_contapaga WHERE conta_id = ?", (row[0],))
-        pagos = cursor.fetchone()[0]
+        # Lançamentos agrupados
+        cursor.execute("""
+            SELECT cp.id, cp.data_pagamento, cp.valor_pago, c.nome, comp.mes, comp.ano, cp.comprovante, comp.id as comp_id
+            FROM gestor_contas_contapaga cp
+            JOIN gestor_contas_conta c ON cp.conta_id = c.id
+            JOIN gestor_contas_competencia comp ON cp.competencia_id = comp.id
+            ORDER BY comp.ano DESC, comp.mes DESC
+        """)
         
-        # Valor da parcela estimado
-        valor_parc = row[3] / row[2] if row[2] and row[3] else 0
-        
-        parcelamentos_legado.append({
-            'id': row[0], 'nome': row[1], 'total': row[2], 'pagas': pagos, 
-            'valor_total': row[3], 'valor_parcela': valor_parc,
-            'migrado': row[0] in parcelamentos_migrados_ids
-        })
+        competencias_dict = {}
+        for row in cursor.fetchall():
+            key = f"{row[4]}/{row[5]}"
+            if key not in competencias_dict:
+                competencias_dict[key] = {'id': row[7], 'mes': row[4], 'ano': row[5], 'label': key, 'lancamentos': []}
+            competencias_dict[key]['lancamentos'].append({
+                'id': row[0], 'data': row[1], 'valor': row[2], 'conta': row[3], 
+                'migrado': row[0] in lancamentos_migrados_ids
+            })
 
-    conn.close()
-    
+        # Parcelamentos
+        cursor.execute("SELECT id, nome, qtd_parcelas, valor_total FROM gestor_contas_conta WHERE parcelas = 1")
+        parcelamentos_legado = []
+        for row in cursor.fetchall():
+            cursor.execute("SELECT COUNT(*) FROM gestor_contas_contapaga WHERE conta_id = ?", (row[0],))
+            pagos = cursor.fetchone()[0]
+            parcelamentos_legado.append({
+                'id': row[0], 'nome': row[1], 'total': row[2], 'pagas': pagos, 
+                'migrado': row[0] in parcelamentos_migrados_ids
+            })
+        
+        conn.close()
+    except Exception:
+        contas_legado = []
+        competencias_dict = {}
+        parcelamentos_legado = []
+
     context = {
+        'ofx_results': sorted(ofx_results, key=lambda x: x['data'], reverse=True),
         'contas_legado': contas_legado,
-        'competencias_legado': competencias_dict.values(),
         'parcelamentos_legado': parcelamentos_legado,
+        'competencias_legado': competencias_dict.values(),
+        'agentes': AgentePagador.objects.all().order_by('nome'),
+        'categorias': Categoria.objects.all().order_by('nome'),
+        'categorias_entrada': Categoria.objects.filter(tipo='entrada').order_by('nome'),
+        'categorias_saida': Categoria.objects.filter(tipo='saida').order_by('nome'),
+        'contas': Conta.objects.all().order_by('nome'),
     }
-    return render(request, 'core/legacy_hub.html', context)
+    return render(request, 'core/importar_dados.html', context)
 
 def legacy_migrate_competencia(request, legacy_comp_id):
     legado_path = r'E:\Gestor_Contas\db.sqlite3'
@@ -542,7 +673,7 @@ def legacy_migrate_competencia(request, legacy_comp_id):
         # Reutiliza a lógica individual para garantir consistência
         legacy_migrate_lancamento(request, l_id)
         
-    return redirect('core:legacy_hub')
+    return redirect('core:importar_dados')
 
 def legacy_migrate_conta(request, legacy_id):
     legado_path = r'E:\Gestor_Contas\db.sqlite3'
@@ -565,7 +696,7 @@ def legacy_migrate_conta(request, legacy_id):
                 'observacoes': row[3]
             }
         )
-    return redirect('core:legacy_hub')
+    return redirect('core:importar_dados')
 
 def legacy_migrate_lancamento(request, legacy_id):
     legado_path = r'E:\Gestor_Contas\db.sqlite3'
@@ -604,7 +735,7 @@ def legacy_migrate_lancamento(request, legacy_id):
                 'comprovante': comprovante 
             }
         )
-    return redirect('core:legacy_hub')
+    return redirect('core:importar_dados')
 
 def legacy_migrate_parcelamento(request, legacy_id):
     legado_path = r'E:\Gestor_Contas\db.sqlite3'
@@ -648,4 +779,110 @@ def legacy_migrate_parcelamento(request, legacy_id):
         # Importante: O usuário agora pode migrar os lançamentos individuais deste parcelamento
         # na seção de lançamentos do Hub para preencher o histórico.
         
-    return redirect('core:legacy_hub')
+    return redirect('core:importar_dados')
+
+def ofx_validar(request):
+    # Marca todos os 'lido' como 'validado'
+    OfxTransacao.objects.filter(status='lido').update(status='validado')
+    return redirect(reverse('core:importar_dados') + '#ofx')
+
+def ofx_vincular_conta(request, pk):
+    if request.method == 'POST':
+        transacao = get_object_or_404(OfxTransacao, pk=pk)
+        conta_id = request.POST.get('conta_id')
+        if conta_id:
+            transacao.conta_sugerida = get_object_or_404(Conta, id=conta_id)
+            transacao.status = 'validado'
+            transacao.save()
+    return redirect(reverse('core:importar_dados') + '#ofx')
+
+def processar_vinculados(request):
+    # Processa apenas transações validadas que tenham conta_sugerida
+    transacoes = OfxTransacao.objects.filter(status='validado', conta_sugerida__isnull=False)
+    
+    processados_count = 0
+    for t in transacoes:
+        # Busca a competência aberta para o mês da transação
+        comp = Competencia.objects.filter(mes=t.data.month, ano=t.data.year, status='aberto').first()
+        if not comp:
+            continue
+            
+        # REGRA: Verificar se já existe um lançamento para esta conta nesta competência
+        lanc = Lancamento.objects.filter(conta=t.conta_sugerida, competencia=comp).first()
+        
+        if lanc:
+            # ATUALIZA lançamento existente com dados do banco
+            lanc.valor_pago = abs(t.valor)
+            lanc.data_pagamento = t.data
+            lanc.status = 'pago'
+            lanc.transacao_id = t.fitid
+            # Se não tinha valor previsto, assume o do banco
+            if not lanc.valor_previsto:
+                lanc.valor_previsto = abs(t.valor)
+            lanc.save()
+        else:
+            # CRIA novo lançamento se não existir
+            lanc = Lancamento.objects.create(
+                conta=t.conta_sugerida,
+                competencia=comp,
+                valor_previsto=abs(t.valor),
+                valor_pago=abs(t.valor),
+                vencimento=t.data,
+                data_pagamento=t.data,
+                descricao=f"Importado OFX: {t.descricao}",
+                status='pago',
+                agente_pagador=t.arquivo.agente,
+                transacao_id=t.fitid
+            )
+
+        # Marca a transação OFX como processada
+        t.status = 'processado'
+        t.lancamento_criado = lanc
+        t.save()
+        processados_count += 1
+        
+    return redirect(reverse('core:importar_dados') + '#ofx')
+
+def ofx_limpar_staging(request):
+    # Limpa apenas transações não processadas
+    OfxTransacao.objects.filter(status__in=['lido', 'validado']).delete()
+    return redirect(reverse('core:importar_dados') + '#ofx')
+
+    return HttpResponse(status=204)
+
+def ofx_update_categoria(request, pk):
+    if request.method == 'POST':
+        transacao = get_object_or_404(OfxTransacao, pk=pk)
+        categoria_id = request.POST.get('categoria_id')
+        if categoria_id:
+            categoria = get_object_or_404(Categoria, id=categoria_id)
+            transacao.categoria_manual = categoria
+            transacao.save()
+    return HttpResponse(status=204)
+
+def ofx_desvincular(request, pk):
+    transacao = get_object_or_404(OfxTransacao, pk=pk)
+    transacao.conta_sugerida = None
+    transacao.status = 'lido'
+    transacao.save()
+    return redirect(reverse('core:importar_dados') + '#ofx')
+
+def ofx_bulk_action(request):
+    if request.method == 'POST':
+        ids = request.POST.getlist('transacao_ids')
+        action_type = request.POST.get('action_type') # 'categoria' ou 'conta'
+        target_id = request.POST.get('target_id')
+        
+        if not ids or not target_id:
+            return redirect(reverse('core:importar_dados') + '#ofx')
+            
+        transacoes = OfxTransacao.objects.filter(pk__in=ids)
+        
+        if action_type == 'categoria':
+            categoria = get_object_or_404(Categoria, id=target_id)
+            transacoes.update(categoria_manual=categoria)
+        elif action_type == 'conta':
+            conta = get_object_or_404(Conta, id=target_id)
+            transacoes.update(conta_sugerida=conta, status='validado')
+            
+    return redirect(reverse('core:importar_dados') + '#ofx')

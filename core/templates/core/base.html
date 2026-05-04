@@ -267,7 +267,7 @@
             <ul>
                 <li><a href="{% url 'core:dashboard' %}" class="{% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}"><i data-lucide="layout-dashboard"></i> Dashboard</a></li>
                 <li><a href="{% url 'core:competencias_list' %}" class="{% if request.resolver_match.url_name == 'competencias_list' %}active{% endif %}"><i data-lucide="calendar"></i> Competências</a></li>
-                <li><a href="{% url 'core:legacy_hub' %}" class="{% if request.resolver_match.url_name == 'legacy_hub' %}active{% endif %}"><i data-lucide="database"></i> Central de Legado</a></li>
+                <li><a href="{% url 'core:importar_dados' %}" class="{% if request.resolver_match.url_name == 'importar_dados' %}active{% endif %}"><i data-lucide="download-cloud"></i> Importar Dados</a></li>
                 <li><a href="{% url 'core:parcelamentos_list' %}" class="{% if request.resolver_match.url_name == 'parcelamentos_list' %}active{% endif %}"><i data-lucide="layers"></i> Contas Parceladas</a></li>
                 <li><a href="#"><i data-lucide="credit-card"></i> Contas Fixas</a></li>
                 <li><a href="{% url 'core:relatorios' %}" class="{% if request.resolver_match.url_name == 'relatorios' %}active{% endif %}"><i data-lucide="pie-chart"></i> Relatórios</a></li>

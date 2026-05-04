@@ -87,7 +87,12 @@
             <div class="item-card">
                 <div>
                     <div style="font-weight: 600; color: var(--text-main);">{{ cat.nome }}</div>
-                    <div style="font-size: 0.75rem; color: var(--text-muted);">{{ cat.usos }} vínculos encontrados</div>
+                    <div style="display: flex; gap: 0.5rem; align-items: center; margin-top: 0.25rem;">
+                        <span class="badge" style="background-color: {% if cat.tipo == 'entrada' %}#dcfce7{% else %}#fee2e2{% endif %}; color: {% if cat.tipo == 'entrada' %}#166534{% else %}#991b1b{% endif %}; font-size: 0.65rem; border: none;">
+                            {{ cat.get_tipo_display }}
+                        </span>
+                        <span style="font-size: 0.75rem; color: var(--text-muted);">{{ cat.usos }} vínculos</span>
+                    </div>
                 </div>
                 {% if cat.usos == 0 %}
                 <a href="{% url 'core:categoria_delete' cat.pk %}" style="color: var(--danger);" title="Excluir Categoria" onclick="return confirm('Excluir esta categoria?')">
@@ -131,6 +136,33 @@
                     </a>
                     {% endif %}
                 </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    <!-- REGRAS DE IMPORTAÇÃO -->
+    <div class="card">
+        <div class="config-header">
+            <h2 style="font-size: 1.25rem; font-weight: 700;">Regras de Importação</h2>
+            <a href="#modal-nova-regra" class="btn btn-primary btn-sm" style="padding: 0.4rem 0.8rem; font-size: 0.875rem;">
+                <i data-lucide="plus"></i> Nova
+            </a>
+        </div>
+        <p style="color: var(--text-muted); font-size: 0.875rem; margin-bottom: 1.5rem;">Auto-categorize transações OFX por palavras-chave.</p>
+        
+        <div class="item-list">
+            {% for r in regras %}
+            <div class="item-card">
+                <div>
+                    <div style="font-weight: 600; color: var(--text-main);">"{{ r.padrao }}"</div>
+                    <div style="font-size: 0.75rem; color: var(--text-muted);">
+                        -> {{ r.categoria.nome }} 
+                        {% if r.nome_exibicao %}| Nome: {{ r.nome_exibicao }}{% endif %}
+                    </div>
+                </div>
+                <a href="{% url 'core:regra_delete' r.pk %}" style="color: var(--danger);" title="Excluir Regra" onclick="return confirm('Excluir esta regra?')">
+                    <i data-lucide="trash-2" style="width: 18px;"></i>
+                </a>
             </div>
             {% endfor %}
         </div>
@@ -190,6 +222,13 @@
                 <label>Nome da Categoria</label>
                 <input type="text" name="nome" class="form-control" placeholder="Ex: Moradia, Alimentação..." required>
             </div>
+            <div class="form-group">
+                <label>Tipo</label>
+                <select name="tipo" class="form-control">
+                    <option value="saida">Saída (Gasto)</option>
+                    <option value="entrada">Entrada (Receita)</option>
+                </select>
+            </div>
             <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 1rem; justify-content: center;">Salvar Categoria</button>
         </form>
     </div>
@@ -236,6 +275,27 @@
                 <textarea name="observacoes" id="edit_conta_obs" class="form-control" rows="3"></textarea>
             </div>
             <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 1rem; justify-content: center;">Salvar Alterações</button>
+        </form>
+    </div>
+</div>
+
+<!-- Modal Nova Regra -->
+<div id="modal-nova-regra" class="modal">
+    <div class="modal-content">
+        <a href="#" class="modal-close"><i data-lucide="x"></i></a>
+        <h2 style="margin-bottom: 1.5rem;">Cadastrar Regra de Importação</h2>
+        <form action="{% url 'core:regra_create' %}" method="post">
+            {% csrf_token %}
+            {% for field in form_regra %}
+            <div class="form-group">
+                <label>{{ field.label }}</label>
+                {{ field }}
+                {% if field.help_text %}
+                <p style="font-size: 0.7rem; color: var(--text-muted); margin-top: 0.25rem;">{{ field.help_text }}</p>
+                {% endif %}
+            </div>
+            {% endfor %}
+            <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 1rem; justify-content: center;">Salvar Regra</button>
         </form>
     </div>
 </div>

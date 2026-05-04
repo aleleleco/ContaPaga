@@ -1,0 +1,618 @@
+{% extends 'core/base.html' %}
+
+{% block title %}Importar Dados - ContaPaga{% endblock %}
+{% block header_title %}Central de Importação{% endblock %}
+
+{% block extra_css %}
+<style>
+    .import-tabs {
+        display: flex;
+        gap: 1rem;
+        margin-bottom: 2rem;
+        border-bottom: 1px solid var(--border);
+        padding-bottom: 1rem;
+    }
+    .tab-link {
+        padding: 0.75rem 1.5rem;
+        border-radius: 10px;
+        text-decoration: none;
+        color: var(--text-muted);
+        font-weight: 600;
+        font-size: 0.875rem;
+        transition: all 0.2s;
+        border: 1px solid transparent;
+    }
+    .tab-link:hover {
+        background-color: var(--bg-main);
+        color: var(--primary);
+    }
+    .tab-link.active {
+        background-color: #3b82f6;
+        color: white;
+    }
+    .import-section {
+        display: none;
+    }
+    .import-section.active {
+        display: block;
+    }
+
+    /* Estilos Legado (Migrados) */
+    .legacy-grid {
+        display: grid;
+        grid-template-columns: 350px 1fr;
+        gap: 2rem;
+        align-items: start;
+    }
+    .status-check {
+        color: #059669;
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+    .row-migrada { background-color: #f0fdf4; opacity: 0.7; }
+    .comp-group { margin-bottom: 2rem; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+    .comp-header { background-color: var(--bg-main); padding: 1rem 1.5rem; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); }
+    .btn-migrate { padding: 0.25rem 0.6rem; background-color: var(--primary); color: white; border-radius: 6px; text-decoration: none; font-size: 0.75rem; }
+    .btn-migrate-bulk { padding: 0.4rem 0.8rem; background-color: #059669; color: white; border-radius: 8px; text-decoration: none; font-size: 0.8rem; font-weight: 600; display: inline-flex; align-items: center; gap: 0.5rem; }
+
+    /* Estilos OFX */
+    .upload-area {
+        border: 2px dashed var(--border);
+        padding: 3rem;
+        text-align: center;
+        border-radius: 16px;
+        background-color: var(--bg-main);
+        transition: border-color 0.2s;
+        cursor: pointer;
+    }
+    .upload-area:hover { border-color: var(--primary); }
+    .ofx-table { width: 100%; border-collapse: collapse; }
+    .ofx-table th { text-align: left; padding: 1rem; background: var(--bg-main); font-size: 0.8rem; color: var(--text-muted); }
+    .ofx-table td { padding: 1rem; border-bottom: 1px solid var(--border); font-size: 0.875rem; }
+    /* Overlay de Load */
+    #loading-overlay {
+        position: fixed;
+        top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(255, 255, 255, 0.8);
+        backdrop-filter: blur(4px);
+        display: none;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+    }
+    .spinner {
+        width: 50px; height: 50px;
+        border: 5px solid var(--bg-main);
+        border-top: 5px solid var(--primary);
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin-bottom: 1rem;
+    }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+</style>
+
+<div id="loading-overlay">
+    <div class="spinner"></div>
+    <h3 style="font-weight: 700; color: var(--primary);">Processando Extratos...</h3>
+    <p style="color: var(--text-muted);">Isso pode levar alguns segundos.</p>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="import-tabs">
+    <a href="#ofx" class="tab-link active" onclick="showTab('ofx')">Dados Bancários (OFX)</a>
+    <a href="#legado" class="tab-link" onclick="showTab('legado')">Migração de Legado</a>
+</div>
+
+<!-- SEÇÃO OFX -->
+<div id="ofx" class="import-section active">
+    <div class="card">
+        <h2 style="font-size: 1.125rem; font-weight: 600; margin-bottom: 1.5rem;">Importar Extratos OFX</h2>
+        <form action="{% url 'core:importar_dados' %}" method="post" enctype="multipart/form-data" id="ofx-form" onsubmit="document.getElementById('loading-overlay').style.display = 'flex';">
+            {% csrf_token %}
+            
+            <div class="form-group" style="margin-bottom: 1.5rem; max-width: 400px;">
+                <label style="font-weight: 700; display: block; margin-bottom: 0.5rem;">Vincular ao Agente Pagador <span style="color: var(--danger);">*</span></label>
+                <select name="agente_id" class="form-control" required>
+                    <option value="">Selecione quem é o dono deste extrato...</option>
+                    {% for agente in agentes %}
+                    <option value="{{ agente.id }}">{{ agente.nome }} (Salário: R$ {{ agente.salario|floatformat:2 }})</option>
+                    {% endfor %}
+                </select>
+                <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">Todas as transações lidas serão atribuídas a este agente.</p>
+            </div>
+
+            <div class="upload-area" onclick="document.getElementById('ofx-input').click()">
+                <i data-lucide="upload-cloud" style="width: 48px; height: 48px; color: var(--primary); margin-bottom: 1rem;"></i>
+                <p style="font-weight: 600;">Clique para selecionar um ou mais arquivos .ofx</p>
+                <p style="font-size: 0.875rem; color: var(--text-muted);">Formatos aceitos: .ofx</p>
+                <input type="file" name="ofx_files" id="ofx-input" multiple accept=".ofx" style="display: none;" 
+                    onchange="if(document.getElementsByName('agente_id')[0].value){ document.getElementById('ofx-form').dispatchEvent(new Event('submit')); this.form.submit(); } else { alert('Selecione um Agente Pagador primeiro!'); this.value=''; }">
+            </div>
+        </form>
+
+        {% if ofx_results %}
+        <div style="margin-top: 2.5rem;">
+            <!-- Barra de Ações em Massa -->
+            <div id="bulk-toolbar" style="display: none; background: var(--primary); color: white; padding: 0.75rem 1.5rem; border-radius: 12px; margin-bottom: 1rem; align-items: center; justify-content: space-between; position: sticky; top: 1rem; z-index: 100; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);">
+                <div style="display: flex; align-items: center; gap: 1rem;">
+                    <i data-lucide="check-square"></i>
+                    <span id="bulk-count" style="font-weight: 700;">0 itens selecionados</span>
+                </div>
+                <div style="display: flex; gap: 0.5rem;">
+                    <button class="btn" style="background: white; color: var(--primary); padding: 0.4rem 0.8rem; font-size: 0.8rem;" onclick="openBulkModal('categoria')">
+                        Atribuir Categoria
+                    </button>
+                    <button class="btn" style="background: white; color: var(--primary); padding: 0.4rem 0.8rem; font-size: 0.8rem;" onclick="openBulkModal('conta')">
+                        Vincular Conta
+                    </button>
+                    <button class="btn" style="background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.4); padding: 0.4rem 0.8rem; font-size: 0.8rem;" onclick="unselectAll()">
+                        Cancelar
+                    </button>
+                </div>
+            </div>
+
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                <h3 style="font-weight: 700;">Transações em Staging ({{ ofx_results|length }})</h3>
+                <div style="display: flex; gap: 0.5rem;">
+                    <a href="{% url 'core:ofx_limpar_staging' %}" class="btn" style="background-color: white; border: 1px solid var(--border); color: var(--text-muted);" onclick="return confirm('Zerar staging?')">
+                        <i data-lucide="trash-2"></i> Limpar
+                    </a>
+                    <a href="{% url 'core:ofx_validar' %}" class="btn" style="background-color: #f59e0b; color: white;">
+                        <i data-lucide="shield-check"></i> Validar Arquivo
+                    </a>
+                    <a href="{% url 'core:processar_vinculados' %}" class="btn btn-primary">
+                        <i data-lucide="zap"></i> Processar Lote
+                    </a>
+                </div>
+            </div>
+
+            <!-- FILTROS -->
+            <div class="card" style="margin-bottom: 1rem; padding: 1rem; display: flex; gap: 1rem; flex-wrap: wrap; background-color: #f8fafc; border-style: dashed;">
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label style="font-size: 0.75rem; font-weight: 700;">Buscar</label>
+                    <input type="text" id="filter-memo" class="form-control" style="font-size: 0.8rem;" placeholder="Filtro rápido..." onkeyup="applyFilters()">
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label style="font-size: 0.75rem; font-weight: 700;">Valor Min.</label>
+                    <input type="number" id="filter-min-val" class="form-control" style="font-size: 0.8rem;" onkeyup="applyFilters()">
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label style="font-size: 0.75rem; font-weight: 700;">Ordenar</label>
+                    <select id="sort-order" class="form-control" style="font-size: 0.8rem;" onchange="applyFilters()">
+                        <option value="date-desc">Data (Recente)</option>
+                        <option value="date-asc">Data (Antiga)</option>
+                        <option value="val-desc">Valor (Maior)</option>
+                        <option value="val-asc">Valor (Menor)</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="table-responsive">
+                <form id="bulk-form" action="{% url 'core:ofx_bulk_action' %}" method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="action_type" id="bulk-action-type">
+                    <input type="hidden" name="target_id" id="bulk-target-id">
+
+                    <table class="ofx-table" id="transactions-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 40px; text-align: center;">
+                                    <input type="checkbox" id="select-all" onclick="toggleAll(this.checked)">
+                                </th>
+                                <th>Status</th>
+                                <th>Data</th>
+                                <th>Descrição / Memo</th>
+                                <th>Valor</th>
+                                <th>Banco</th>
+                                <th>Categoria</th>
+                                <th>Vínculo (Conta)</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="transactions-body">
+                            {% for t in ofx_results %}
+                            <tr class="transaction-row" 
+                                data-date="{{ t.data|date:'Y-m-d' }}" 
+                                data-memo="{{ t.memo|lower }}" 
+                                data-val="{{ t.valor|floatformat:2|safe }}"
+                                style="{% if t.correspondencia %}background-color: #f8fafc;{% endif %}">
+                                <td style="text-align: center;">
+                                    <input type="checkbox" name="transacao_ids" value="{{ t.obj.id }}" class="row-checkbox" onclick="updateBulkToolbar()">
+                                </td>
+                                <td>
+                                    {% if t.obj.status == 'lido' %}
+                                    <span class="badge" style="background-color: #e2e8f0; color: #475569;">Lido</span>
+                                    {% elif t.obj.status == 'validado' %}
+                                    <span class="badge" style="background-color: #dcfce7; color: #166534;">Validado</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ t.data|date:"d/m/Y" }}</td>
+                                <td>
+                                    <div style="font-weight: 600; display: flex; align-items: center; gap: 0.4rem;">
+                                        {% if t.regra and t.regra.nome_exibicao %}
+                                            {{ t.regra.nome_exibicao }} <span style="font-weight: 400; font-size: 0.7rem; color: var(--text-muted);">({{ t.memo }})</span>
+                                        {% else %}
+                                            {{ t.memo }}
+                                        {% endif %}
+                                        {% if t.regra %}
+                                            <i data-lucide="sparkles" style="width: 14px; color: #3b82f6;" title="Regra Aplicada: {{ t.regra.padrao }}"></i>
+                                        {% endif %}
+                                    </div>
+                                    <div style="font-size: 0.7rem; color: var(--text-muted);">{{ t.arquivo }} | ID: {{ t.id }}</div>
+                                </td>
+                                <td style="font-weight: 700; color: {% if t.valor < 0 %}var(--danger){% else %}var(--success){% endif %};">
+                                    R$ {{ t.valor|floatformat:2 }}
+                                </td>
+                                <td>
+                                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                        <div style="background-color: {{ t.banco.color }}; color: white; padding: 0.35rem; border-radius: 8px; display: flex;">
+                                            <i data-lucide="{{ t.banco.icon }}" style="width: 14px; height: 14px;"></i>
+                                        </div>
+                                        <span style="font-size: 0.8rem; font-weight: 600;">{{ t.banco.name }}</span>
+                                    </div>
+                                </td>
+                                <td>
+                                    <select class="form-control category-select" style="font-size: 0.75rem; padding: 0.25rem;" 
+                                        onchange="updateCategory('{{ t.obj.id }}', this.value)"
+                                        {% if t.correspondencia %}disabled{% endif %}>
+                                        <option value="">Selecione...</option>
+                                        <optgroup label="Receitas (Entradas)">
+                                            {% for cat in categorias_entrada %}
+                                            <option value="{{ cat.id }}" 
+                                                {% if t.obj.categoria_manual and t.obj.categoria_manual.id == cat.id %}selected
+                                                {% elif not t.obj.categoria_manual and t.correspondencia and t.correspondencia.categoria.id == cat.id %}selected
+                                                {% elif not t.obj.categoria_manual and not t.correspondencia and t.regra and t.regra.categoria.id == cat.id %}selected{% endif %}>
+                                                {{ cat.nome }}
+                                            </option>
+                                            {% endfor %}
+                                        </optgroup>
+                                        <optgroup label="Gastos (Saídas)">
+                                            {% for cat in categorias_saida %}
+                                            <option value="{{ cat.id }}" 
+                                                {% if t.obj.categoria_manual and t.obj.categoria_manual.id == cat.id %}selected
+                                                {% elif not t.obj.categoria_manual and t.correspondencia and t.correspondencia.categoria.id == cat.id %}selected
+                                                {% elif not t.obj.categoria_manual and not t.correspondencia and t.regra and t.regra.categoria.id == cat.id %}selected{% endif %}>
+                                                {{ cat.nome }}
+                                            </option>
+                                            {% endfor %}
+                                        </optgroup>
+                                    </select>
+                                </td>
+                                <td>
+                                    {% if t.correspondencia %}
+                                    <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; padding: 0.4rem 0.6rem; border-radius: 8px; display: flex; align-items: center; gap: 0.5rem;">
+                                        <i data-lucide="link" style="width: 14px; color: #166534;"></i>
+                                        <div>
+                                            <div style="font-size: 0.8rem; font-weight: 700; color: #166534;">
+                                                {{ t.correspondencia.nome }}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {% else %}
+                                    <div style="color: var(--text-muted); font-size: 0.75rem; font-style: italic; display: flex; align-items: center; gap: 0.25rem;">
+                                        <i data-lucide="help-circle" style="width: 12px;"></i> Sem vínculo
+                                    </div>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div style="display: flex; gap: 0.25rem;">
+                                        {% if not t.correspondencia %}
+                                        <button type="button" class="btn" style="padding: 0.35rem 0.75rem; font-size: 0.75rem; background-color: var(--primary); color: white;" onclick="openVincularModal('{{ t.obj.id }}', '{{ t.memo }}', '{{ t.valor }}')">
+                                            Vincular
+                                        </button>
+                                        {% else %}
+                                        <div style="display: flex; flex-direction: column; gap: 0.25rem; width: 100%;">
+                                            <button type="button" class="btn" style="background-color: #10b981; color: white; padding: 0.25rem; font-size: 0.7rem; width: 100%;" onclick="alert('Confirmado para o processamento final.')">
+                                                <i data-lucide="check" style="width: 12px;"></i> Confirmar
+                                            </button>
+                                            <a href="{% url 'core:ofx_desvincular' t.obj.id %}" class="btn" style="background-color: white; border: 1px solid var(--border); color: var(--danger); padding: 0.25rem; font-size: 0.7rem; width: 100%; text-align: center; text-decoration: none;" onclick="return confirm('Deseja realmente desvincular esta conta?')">
+                                                <i data-lucide="unlink" style="width: 12px;"></i> Desvincular
+                                            </a>
+                                            <button type="button" class="btn" style="background-color: white; border: 1px solid var(--border); color: var(--text-muted); padding: 0.25rem; font-size: 0.7rem; width: 100%;" onclick="openVincularModal('{{ t.obj.id }}', '{{ t.memo }}', '{{ t.valor }}')">
+                                                Trocar
+                                            </button>
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </form>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Modal Vincular Conta -->
+<div id="modal-vincular" class="modal">
+    <div class="modal-content">
+        <a href="#" class="modal-close"><i data-lucide="x"></i></a>
+        <h2 style="margin-bottom: 1rem;">Vincular Lançamento à Conta</h2>
+        <div id="vincular-info" style="background: var(--bg-main); padding: 1rem; border-radius: 12px; margin-bottom: 1.5rem; border: 1px solid var(--border);">
+            <div id="vincular-memo" style="font-weight: 700; font-size: 1rem; color: var(--primary);"></div>
+            <div id="vincular-valor" style="font-weight: 600; margin-top: 0.25rem;"></div>
+        </div>
+        
+        <form id="vincular-form" action="" method="post">
+            {% csrf_token %}
+            <div class="form-group">
+                <label style="font-weight: 700;">Selecione a Conta de Destino</label>
+                <select name="conta_id" class="form-control" required id="select-vincular-conta">
+                    <option value="">-- Escolha uma conta --</option>
+                    {% for c in contas %}
+                    <option value="{{ c.id }}">{{ c.nome }} ({{ c.get_tipo_display }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 1.5rem; justify-content: center;">
+                <i data-lucide="link"></i> Estabelecer Vínculo
+            </button>
+        </form>
+    </div>
+</div>
+
+<!-- Modal Ação em Massa -->
+<div id="modal-bulk" class="modal">
+    <div class="modal-content">
+        <a href="#" class="modal-close"><i data-lucide="x"></i></a>
+        <h2 id="bulk-modal-title" style="margin-bottom: 1.5rem;">Ação em Massa</h2>
+        
+        <div id="bulk-select-categoria" style="display: none;">
+            <div class="form-group">
+                <label style="font-weight: 700;">Selecione a Categoria</label>
+                <select id="bulk-categoria-id" class="form-control">
+                    <option value="">-- Selecione --</option>
+                    <optgroup label="Receitas">
+                        {% for cat in categorias_entrada %}
+                        <option value="{{ cat.id }}">{{ cat.nome }}</option>
+                        {% endfor %}
+                    </optgroup>
+                    <optgroup label="Gastos">
+                        {% for cat in categorias_saida %}
+                        <option value="{{ cat.id }}">{{ cat.nome }}</option>
+                        {% endfor %}
+                    </optgroup>
+                </select>
+            </div>
+        </div>
+
+        <div id="bulk-select-conta" style="display: none;">
+            <div class="form-group">
+                <label style="font-weight: 700;">Selecione a Conta</label>
+                <select id="bulk-conta-id" class="form-control">
+                    <option value="">-- Selecione --</option>
+                    {% for c in contas %}
+                    <option value="{{ c.id }}">{{ c.nome }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <button type="button" class="btn btn-primary" style="width: 100%; margin-top: 1.5rem; justify-content: center;" onclick="submitBulk()">
+            Confirmar Atribuição em Massa
+        </button>
+    </div>
+</div>
+
+<!-- SEÇÃO LEGADO -->
+<div id="legado" class="import-section">
+    <div class="legacy-grid">
+        <div style="position: sticky; top: 1.5rem;">
+            <div class="card" style="margin-bottom: 2rem;">
+                <h2 style="font-size: 1.125rem; font-weight: 700; margin-bottom: 1rem;"><i data-lucide="book-open"></i> Contas</h2>
+                <table>
+                    <tbody>
+                        {% for c in contas_legado %}
+                        <tr class="{% if c.migrada %}row-migrada{% endif %}">
+                            <td>
+                                <div style="font-weight: 600; font-size: 0.875rem;">{{ c.nome }}</div>
+                                {% if c.migrada %}<div class="status-check"><i data-lucide="check-circle-2" style="width:12px;"></i> OK</div>{% endif %}
+                            </td>
+                            <td style="text-align: right;">
+                                {% if not c.migrada %}<a href="{% url 'core:legacy_migrate_conta' c.id %}" class="btn-migrate">Migrar</a>{% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <div class="card">
+                <h2 style="font-size: 1.125rem; font-weight: 700; margin-bottom: 1rem;"><i data-lucide="layers"></i> Contratos</h2>
+                <table>
+                    <tbody>
+                        {% for p in parcelamentos_legado %}
+                        <tr class="{% if p.migrado %}row-migrada{% endif %}">
+                            <td>
+                                <div style="font-weight: 600; font-size: 0.875rem;">{{ p.nome }}</div>
+                                {% if p.migrado %}<div class="status-check"><i data-lucide="check-circle-2" style="width:12px;"></i> OK</div>{% endif %}
+                            </td>
+                            <td style="text-align: right;">
+                                {% if not p.migrado %}<a href="{% url 'core:legacy_migrate_parcelamento' p.id %}" class="btn-migrate">Migrar</a>{% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div>
+            <h2 style="font-size: 1.125rem; font-weight: 700; margin-bottom: 1rem;"><i data-lucide="history"></i> Lançamentos Históricos</h2>
+            {% for comp in competencias_legado %}
+            <div class="comp-group">
+                <div class="comp-header">
+                    <div>
+                        <h3 style="font-size: 1rem; font-weight: 700; margin: 0;">{{ comp.label }}</h3>
+                        <span style="font-size: 0.75rem; color: var(--text-muted);">{{ comp.lancamentos|length }} registros</span>
+                    </div>
+                    <a href="{% url 'core:legacy_migrate_competencia' comp.id %}" class="btn-migrate-bulk"><i data-lucide="copy-check"></i> Migrar Mês</a>
+                </div>
+                <div class="comp-body">
+                    <table style="margin: 0;">
+                        <tbody>
+                            {% for l in comp.lancamentos %}
+                            <tr class="{% if l.migrado %}row-migrada{% endif %}">
+                                <td style="padding-left: 1.5rem;">
+                                    <div style="font-weight: 600;">{{ l.conta }}</div>
+                                </td>
+                                <td>R$ {{ l.valor|floatformat:2 }}</td>
+                                <td style="text-align: right; padding-right: 1.5rem;">
+                                    {% if l.migrado %}
+                                        <div class="status-check" style="justify-content: flex-end;"><i data-lucide="check-circle-2" style="width:14px;"></i> OK</div>
+                                    {% else %}
+                                        <a href="{% url 'core:legacy_migrate_lancamento' l.id %}" class="btn-migrate">Migrar</a>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function showTab(tabId) {
+        document.querySelectorAll('.tab-link').forEach(link => link.classList.remove('active'));
+        document.querySelectorAll('.import-section').forEach(section => section.classList.remove('active'));
+        const link = document.querySelector(`a[href="#${tabId}"]`);
+        if (link) link.classList.add('active');
+        const section = document.getElementById(tabId);
+        if (section) section.classList.add('active');
+        window.location.hash = tabId;
+    }
+
+    function applyFilters() {
+        const memo = document.getElementById('filter-memo').value.toLowerCase();
+        const minVal = parseFloat(document.getElementById('filter-min-val').value) || 0;
+        const sort = document.getElementById('sort-order').value;
+        const rows = Array.from(document.querySelectorAll('.transaction-row'));
+        const container = document.getElementById('transactions-body');
+
+        rows.forEach(row => {
+            const rowMemo = row.dataset.memo;
+            const rowVal = Math.abs(parseFloat(row.dataset.val));
+            const matchesMemo = rowMemo.includes(memo);
+            const matchesVal = rowVal >= minVal;
+            row.style.display = (matchesMemo && matchesVal) ? '' : 'none';
+        });
+
+        rows.sort((a, b) => {
+            if (sort === 'date-asc') return new Date(a.dataset.date) - new Date(b.dataset.date);
+            if (sort === 'date-desc') return new Date(b.dataset.date) - new Date(a.dataset.date);
+            if (sort === 'val-asc') return parseFloat(a.dataset.val) - parseFloat(b.dataset.val);
+            if (sort === 'val-desc') return parseFloat(b.dataset.val) - parseFloat(a.dataset.val);
+            return 0;
+        });
+
+        rows.forEach(row => container.appendChild(row));
+    }
+
+    function openVincularModal(id, memo, valor) {
+        const modal = document.getElementById('modal-vincular');
+        const form = document.getElementById('vincular-form');
+        const memoEl = document.getElementById('vincular-memo');
+        const valorEl = document.getElementById('vincular-valor');
+        
+        memoEl.innerText = memo;
+        valorEl.innerText = 'R$ ' + parseFloat(valor).toLocaleString('pt-BR', {minimumFractionDigits: 2});
+        form.action = `/ofx/vincular/${id}/`;
+        
+        window.location.hash = 'modal-vincular';
+    }
+
+    function updateCategory(transacaoId, categoriaId) {
+        const formData = new FormData();
+        formData.append('categoria_id', categoriaId);
+        formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+        
+        fetch(`/ofx/update-categoria/${transacaoId}/`, {
+            method: 'POST',
+            body: formData
+        }).then(response => {
+            if (!response.ok) alert('Erro ao atualizar categoria.');
+        });
+    }
+
+    // Bulk Actions
+    function toggleAll(checked) {
+        document.querySelectorAll('.row-checkbox').forEach(cb => cb.checked = checked);
+        updateBulkToolbar();
+    }
+
+    function unselectAll() {
+        document.getElementById('select-all').checked = false;
+        toggleAll(false);
+    }
+
+    function updateBulkToolbar() {
+        const checkedCount = document.querySelectorAll('.row-checkbox:checked').length;
+        const toolbar = document.getElementById('bulk-toolbar');
+        const countLabel = document.getElementById('bulk-count');
+        
+        if (checkedCount > 0) {
+            toolbar.style.display = 'flex';
+            countLabel.innerText = `${checkedCount} item(s) selecionado(s)`;
+        } else {
+            toolbar.style.display = 'none';
+        }
+    }
+
+    function openBulkModal(type) {
+        const title = document.getElementById('bulk-modal-title');
+        const secCat = document.getElementById('bulk-select-categoria');
+        const secConta = document.getElementById('bulk-select-conta');
+        const actionTypeInput = document.getElementById('bulk-action-type');
+        
+        secCat.style.display = 'none';
+        secConta.style.display = 'none';
+        actionTypeInput.value = type;
+
+        if (type === 'categoria') {
+            title.innerText = 'Atribuir Categoria em Massa';
+            secCat.style.display = 'block';
+        } else {
+            title.innerText = 'Vincular Conta em Massa';
+            secConta.style.display = 'block';
+        }
+        
+        window.location.hash = 'modal-bulk';
+    }
+
+    function submitBulk() {
+        const type = document.getElementById('bulk-action-type').value;
+        const targetId = (type === 'categoria') 
+            ? document.getElementById('bulk-categoria-id').value 
+            : document.getElementById('bulk-conta-id').value;
+            
+        if (!targetId) {
+            alert('Por favor, selecione um destino.');
+            return;
+        }
+        
+        document.getElementById('bulk-target-id').value = targetId;
+        document.getElementById('bulk-form').submit();
+    }
+
+    window.addEventListener('load', () => {
+        const hash = window.location.hash.substring(1);
+        if (hash) {
+            if (hash === 'modal-vincular' || hash === 'modal-bulk') return;
+            showTab(hash);
+        }
+    });
+</script>
+{% endblock %}

@@ -135,7 +135,12 @@
                 {% for lancamento in lancamentos %}
                 <tr>
                     <td>
-                        <div style="font-weight: 600;">{{ lancamento.conta.nome }}{% if lancamento.parcela_atual %} ({{ lancamento.parcela_atual }}/{{ lancamento.total_parcelas }}){% endif %}</div>
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            <div style="font-weight: 600;">{{ lancamento.conta.nome }}{% if lancamento.parcela_atual %} ({{ lancamento.parcela_atual }}/{{ lancamento.total_parcelas }}){% endif %}</div>
+                            {% if lancamento.transacao_id %}
+                                <i data-lucide="landmark" style="width: 14px; height: 14px; color: #6366f1;" title="Importado via Extrato Bancário"></i>
+                            {% endif %}
+                        </div>
                         <div style="font-size: 0.7rem; color: var(--text-muted);">
                             {{ lancamento.conta.categoria.nome }}
                             {% if lancamento.conta.observacoes %} - <span style="font-style: italic;">{{ lancamento.conta.observacoes }}</span>{% endif %}
@@ -148,18 +153,31 @@
                             {{ lancamento.get_status_display }}
                         </span>
                     </td>
-                    <td>
-                        {% if lancamento.status == 'pendente' %}
-                            {% if competencia.status == 'aberto' %}
-                            <button onclick="openPaymentModal('{{ lancamento.pk }}', '{{ lancamento.conta.nome }}', '{{ lancamento.valor_previsto }}')" class="btn" style="padding: 0.25rem 0.5rem; background-color: var(--success); color: white; font-size: 0.75rem;">
-                                <i data-lucide="dollar-sign" style="width: 14px; height: 14px;"></i> Pagar
-                            </button>
+                    <td style="white-space: nowrap;">
+                        <div style="display: flex; gap: 0.5rem; align-items: center;">
+                            {% if lancamento.status == 'pendente' %}
+                                {% if competencia.status == 'aberto' %}
+                                <button onclick="openPaymentModal('{{ lancamento.pk }}', '{{ lancamento.conta.nome }}', '{{ lancamento.valor_previsto }}')" class="btn" style="padding: 0.35rem; background-color: var(--success); color: white; border-radius: 6px; line-height: 0;" title="Pagar">
+                                    <i data-lucide="dollar-sign" style="width: 16px; height: 16px;"></i>
+                                </button>
+                                {% endif %}
                             {% else %}
-                            <span style="color: var(--text-muted); font-size: 0.75rem;">Mês Fechado</span>
+                                <i data-lucide="check-circle" style="color: var(--success); width: 18px;" title="Pago"></i>
                             {% endif %}
-                        {% else %}
-                        <i data-lucide="check-circle" style="color: var(--success); width: 18px;"></i>
-                        {% endif %}
+
+                            {% if competencia.status == 'aberto' %}
+                                <a href="{% url 'core:lancamento_edit' lancamento.pk %}" class="btn" style="padding: 0.35rem; background-color: #f1f5f9; color: #64748b; border: 1px solid var(--border); border-radius: 6px; line-height: 0;" title="Editar">
+                                    <i data-lucide="edit-3" style="width: 16px; height: 16px;"></i>
+                                </a>
+                                
+                                <form action="{% url 'core:lancamento_delete' lancamento.pk %}" method="post" onsubmit="return confirm('Excluir este lançamento?')">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn" style="padding: 0.35rem; background-color: #fef2f2; color: #ef4444; border: 1px solid #fee2e2; border-radius: 6px; line-height: 0;" title="Excluir">
+                                        <i data-lucide="trash-2" style="width: 16px; height: 16px;"></i>
+                                    </button>
+                                </form>
+                            {% endif %}
+                        </div>
                     </td>
                 </tr>
                 {% empty %}

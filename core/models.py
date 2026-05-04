@@ -31,10 +31,15 @@ class Competencia(models.Model):
         return f"{self.get_mes_display()}/{self.ano}"
 
 class Categoria(models.Model):
+    TIPO_CHOICES = [
+        ('entrada', 'Entrada (Receita)'),
+        ('saida', 'Saída (Gasto)'),
+    ]
     nome = models.CharField(max_length=100, unique=True)
+    tipo = models.CharField(max_length=10, choices=TIPO_CHOICES, default='saida')
 
     def __str__(self):
-        return self.nome
+        return f"{self.nome} ({self.get_tipo_display()})"
 
 class Conta(models.Model):
     TIPO_CHOICES = (
@@ -104,9 +109,56 @@ class Lancamento(models.Model):
     parcela_atual = models.PositiveSmallIntegerField(null=True, blank=True)
     total_parcelas = models.PositiveSmallIntegerField(null=True, blank=True)
     legacy_id = models.PositiveIntegerField(null=True, blank=True, unique=True)
+    
+    # Identificador único do Banco (para evitar duplicatas no OFX)
+    transacao_id = models.CharField(max_length=255, null=True, blank=True, unique=True)
 
     def __str__(self):
         label = f"{self.conta.nome} - {self.competencia}"
         if self.parcela_atual:
             label += f" ({self.parcela_atual}/{self.total_parcelas})"
         return label
+
+class RegraImportacao(models.Model):
+    padrao = models.CharField(max_length=100, help_text="Termo contido no extrato (ex: UBER, IFOOD)")
+    categoria = models.ForeignKey(Categoria, on_delete=models.CASCADE)
+    nome_exibicao = models.CharField(max_length=100, blank=True, help_text="Nome amigável para o lançamento (opcional)")
+
+    def __str__(self):
+        return f"{self.padrao} -> {self.categoria.nome}"
+
+    class Meta:
+        verbose_name = "Regra de Importação"
+        verbose_name_plural = "Regras de Importação"
+
+class OfxArquivo(models.Model):
+    arquivo = models.FileField(upload_to='ofx_imports/')
+    data_upload = models.DateTimeField(auto_now_add=True)
+    agente = models.ForeignKey(AgentePagador, on_delete=models.CASCADE)
+    banco_nome = models.CharField(max_length=50)
+
+    def __str__(self):
+        return f"{self.banco_nome} - {self.data_upload}"
+
+class OfxTransacao(models.Model):
+    STATUS_CHOICES = [
+        ('lido', 'Lido'),
+        ('validado', 'Validado'),
+        ('processado', 'Processado'),
+        ('ignorado', 'Ignorado'),
+    ]
+    arquivo = models.ForeignKey(OfxArquivo, on_delete=models.CASCADE, related_name='transacoes')
+    fitid = models.CharField(max_length=255, unique=True) # ID único do banco
+    data = models.DateField()
+    valor = models.DecimalField(max_digits=15, decimal_places=2)
+    descricao = models.TextField()
+    tipo = models.CharField(max_length=20)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='lido')
+    
+    # Vínculo temporário antes de processar
+    conta_sugerida = models.ForeignKey(Conta, on_delete=models.SET_NULL, null=True, blank=True)
+    categoria_manual = models.ForeignKey(Categoria, on_delete=models.SET_NULL, null=True, blank=True)
+    lancamento_criado = models.OneToOneField(Lancamento, on_delete=models.SET_NULL, null=True, blank=True)
+
+    def __str__(self):
+        return f"{self.data} - {self.descricao} (R$ {self.valor})"

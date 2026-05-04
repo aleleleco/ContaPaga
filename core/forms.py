@@ -1,5 +1,15 @@
 from django import forms
-from .models import Conta, Lancamento, Categoria, Parcelamento
+from .models import Conta, Lancamento, Categoria, Parcelamento, AgentePagador, RegraImportacao
+
+class RegraImportacaoForm(forms.ModelForm):
+    class Meta:
+        model = RegraImportacao
+        fields = ['padrao', 'categoria', 'nome_exibicao']
+        widgets = {
+            'padrao': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ex: UBER, IFOOD'}),
+            'categoria': forms.Select(attrs={'class': 'form-control'}),
+            'nome_exibicao': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Opcional: Nome Amigável'}),
+        }
 
 class ContaForm(forms.ModelForm):
     class Meta:
