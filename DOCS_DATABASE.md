@@ -45,24 +45,24 @@ Registros persistidos das transações para processamento assíncrono.
     - `lido`: Recém importado (Aba Pendentes).
     - `validado`: Pronto para gerar lançamento (Aba Validados).
     - `processado`: Já gerou um lançamento financeiro.
-    - `ignorado`: Desconsiderado pelo usuário.
+    - `ignorado`: Desconsiderado pelo usuário (Aba Ignorados - Destaque em Vermelho).
     - `transferencia`: Identificado automaticamente como movimentação entre contas do sistema.
 - `conta_sugerida`: Sugestão automática baseada em histórico ou regras.
-- `categoria_manual`: Categoria sugerida via `RegraImportacao`.
+- `vinculo_por_regra`: Flag que identifica se o vínculo foi automático.
 
 ### `RegraImportacao`
-Automação de categorias baseada em termos no extrato.
+Automação de vínculos baseada em termos no extrato.
 - `padrao`: Termo de busca (ex: "UBER", "IFOOD").
-- `categoria`: Categoria a ser sugerida automaticamente.
+- `conta`: Conta de destino a ser sugerida automaticamente (Vínculo direto com Conta).
 
 ---
 
-## 📊 Categorias e Lançamentos
+## 📈 Lógica de Cálculos (Regime de Caixa)
 
-### `Categoria`
-- `tipo`: entrada (Receita) ou saida (Gasto).
-- `is_salary`: Flag que identifica se a categoria representa o salário principal.
+O sistema opera sob a regra de que **apenas lançamentos com `status='pago'`** são considerados para:
+1. Totais de Receita e Despesa no Dashboard.
+2. Saldo Líquido Mensal.
+3. Todos os gráficos de Relatórios (Distribuição por Categoria e Gastos por Conta).
+4. Cálculos de performance dos Agentes Pagadores.
 
-### `Lancamento`
-- `agente_pagador`: Vínculo com quem pagou/recebeu.
-- `transacao_id`: Armazena o `fitid` do banco para rastreabilidade e evitar duplicidade na competência.
+Lançamentos com status `pendente` são visíveis apenas nas listagens e no card de "Total a Pagar", garantindo que a análise financeira reflita o dinheiro real movimentado.

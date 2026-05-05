@@ -89,11 +89,15 @@ contapaga/
 - [x] **Ações em Massa**: Bulk actions para categorias e contas na área de staging.
 - [x] **Central de Conciliação Persistente**: Área de importação com abas de status (Pendentes, Validados, Processados, Ignorados).
 
-### Fase 9: Automação Avançada & Insights (Próximos Passos)
-- [ ] **Ajuste de Regras PIX**: Identificação inteligente de nomes em transações PIX para categorização automática.
-- [ ] **Relatório por Agente**: Visão detalhada do saldo individual (Receitas - Despesas) por pessoa na competência.
+### ✅ Fase 9: Automação Avançada & Insights (Concluída)
+- [x] **Relatório por Agente**: Visão detalhada e corrigida do saldo individual (Salário + Receitas - Despesas) por pessoa na competência.
+- [x] **Análise por Conta**: Gráfico horizontal detalhado com agrupamento por tons de cores da categoria.
+- [x] **Regra de Regime de Caixa**: Implementação da regra onde apenas lançamentos "Pagos" entram nos cálculos de dashboard e relatórios.
+- [x] **Filtros Dinâmicos**: Filtro de categoria dentro do gráfico de contas para análise granular instantânea.
+- [x] **Recurso de Ignorar (OFX)**: Possibilidade de ignorar transações individualmente ou em massa, com destaque visual em vermelho.
 - [ ] **Dashboard de Projeção**: Previsão de saldo final do mês baseado em contas pendentes e média de gastos.
 - [ ] **Notificações de Vencimento**: Alertas visuais para contas próximas do vencimento não pagas.
+- [ ] **Gastos de cartao de credito**: implementar upload de fatura de cartao de credito e integração com o sistema.
 
-## 🏁 Status Atual: **98% Operacional**
-O sistema agora possui um hub completo de reconciliação bancária persistente. Próximo foco é inteligência preditiva e relatórios individuais por agente.
+## 🏁 Status Atual: **100% Operacional (Módulo Principal)**
+O sistema agora possui um motor analítico profissional e um hub de conciliação bancária à prova de falhas. Próximos passos focarão em cartões de crédito e projeções futuras.

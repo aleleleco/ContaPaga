@@ -5,22 +5,23 @@
 ![Aesthetics](https://img.shields.io/badge/Aesthetics-Premium-blue)
 ![Django](https://img.shields.io/badge/Framework-Django%206.0-green)
 ![Python](https://img.shields.io/badge/Language-Python%203.13-yellow)
-![Status](https://img.shields.io/badge/Status-98%25%20Operacional-success)
+![Status](https://img.shields.io/badge/Status-100%25%20Operacional-success)
 
 ## 🚀 Funcionalidades Principais
 
-### 🏦 Inteligência Bancária & Conciliação (Novo!)
+### 🏦 Inteligência Bancária & Conciliação (Premium)
 - **Conciliação OFX Profissional:** Central de importação persistente com sistema de abas (Pendentes, Validados, Processados e Ignorados).
+- **Recurso de Ignorar (OFX):** Ferramenta para descartar transações irrelevantes ou duplicadas, individualmente ou em massa.
 - **Multicontas por Agente:** Suporte a múltiplos bancos e contas para cada pagador cadastrado.
-- **Gestão de Chaves PIX:** Cadastro e organização de chaves bancárias (CPF, E-mail, Celular, Aleatória).
-- **Identificação de Transferências:** Algoritmo inteligente que detecta e ignora movimentações entre suas próprias contas, evitando duplicidade no saldo.
-- **Ações em Massa (Bulk):** Atribuição rápida de categorias e vínculos de contas para múltiplos lançamentos simultaneamente.
+- **Identificação de Transferências:** Algoritmo inteligente que detecta e ignora movimentações entre suas próprias contas.
+- **Ações em Massa (Bulk):** Atribuição rápida de categorias e vínculos de contas para múltiplos lançamentos.
 
-### 📊 Dashboards & Visualização
-- **Visão Mensal:** Resumo de gastos, pagamentos e economia do mês atual.
-- **Gráficos Dinâmicos:** Visualização por categoria (Donut) e comparativo de contas fixas (Bar) via Chart.js.
-- **Salário Dinâmico:** Monitoramento em tempo real de receitas em contas marcadas como "Salário".
-- **Gestão de Parcelamentos:** Cards interativos com progresso de quitação e gráficos de pizza.
+### 📊 Dashboards & Analytics Avançado
+- **Visão por Agente:** Cálculo preciso de Saldo Disponível considerando (Salário + Rendas Extras - Gastos) por pessoa.
+- **Análise por Conta:** Novo gráfico horizontal com agrupamento cromático (tons de cor por categoria).
+- **Filtros Dinâmicos:** Drill-down instantâneo por categoria dentro dos gráficos de contas.
+- **Regime de Caixa:** Gráficos e totais baseados estritamente em contas com status "Pago".
+- **Dashboard Financeiro:** Resumo de gastos, pagamentos e economia do mês atual.
 
 ### ⚙️ Governança Financeira
 - **Agentes Pagadores:** Controle de quem realizou o pagamento, com monitoramento de consumo de salário e saldo restante.

@@ -116,6 +116,34 @@
 
 <!-- SEÇÃO: VISÃO MENSAL -->
 <div id="mensal" class="report-section active">
+    <div class="card" style="margin-bottom: 1.5rem; padding: 1.5rem;">
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 2rem; text-align: center;">
+            <div>
+                <h3 style="font-size: 0.875rem; color: var(--text-muted); margin-bottom: 0.5rem;">Total Recebido</h3>
+                <div style="font-size: 1.5rem; font-weight: 800; color: var(--success);">R$ {{ total_recebido|floatformat:2 }}</div>
+                {% if comp_anterior %}
+                <div style="font-size: 0.75rem; color: {% if diff_recebido >= 0 %}var(--success){% else %}var(--danger){% endif %}; margin-top: 0.25rem;">
+                    {% if diff_recebido >= 0 %}+{% endif %}R$ {{ diff_recebido|floatformat:2 }} vs ant.
+                </div>
+                {% endif %}
+            </div>
+            <div style="border-left: 1px solid var(--border); border-right: 1px solid var(--border);">
+                <h3 style="font-size: 0.875rem; color: var(--text-muted); margin-bottom: 0.5rem;">Total Pago</h3>
+                <div style="font-size: 1.5rem; font-weight: 800; color: var(--danger);">R$ {{ total_pago|floatformat:2 }}</div>
+                {% if comp_anterior %}
+                <div style="font-size: 0.75rem; color: {% if diff_pago <= 0 %}var(--success){% else %}var(--danger){% endif %}; margin-top: 0.25rem;">
+                    {% if diff_pago > 0 %}+{% endif %}R$ {{ diff_pago|floatformat:2 }} vs ant.
+                </div>
+                {% endif %}
+            </div>
+            <div>
+                <h3 style="font-size: 0.875rem; color: var(--text-muted); margin-bottom: 0.5rem;">Saldo Líquido</h3>
+                <div style="font-size: 1.5rem; font-weight: 800; color: {% if saldo_final >= 0 %}var(--primary){% else %}var(--danger){% endif %};">R$ {{ saldo_final|floatformat:2 }}</div>
+                <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">{{ comp_atual }}</div>
+            </div>
+        </div>
+    </div>
+
     <div class="grid-2">
         <div class="card">
             <h2 style="font-size: 1.125rem; font-weight: 600; margin-bottom: 1.5rem;">Distribuição por Categoria</h2>
@@ -123,17 +151,16 @@
                 <canvas id="categoryChart"></canvas>
             </div>
         </div>
-        <div class="card summary-card">
-            <h2 style="font-size: 1.125rem; font-weight: 600; color: var(--text-muted);">Total Pago em {{ comp_atual }}</h2>
-            <div style="font-size: 2.5rem; font-weight: 800; margin: 1rem 0;">R$ {{ total_atual|floatformat:2 }}</div>
-            {% if comp_anterior %}
-                <div style="color: var(--text-muted); font-size: 0.875rem;">Anterior: R$ {{ total_anterior|floatformat:2 }}</div>
-                {% if total_atual > total_anterior %}
-                    <div class="trend-indicator trend-up"><i data-lucide="trending-up"></i> Aumento de R$ {{ diff_valor|floatformat:2 }}</div>
-                {% else %}
-                    <div class="trend-indicator trend-down"><i data-lucide="trending-down"></i> Redução de R$ {{ diff_valor|floatformat:2 }}</div>
-                {% endif %}
-            {% endif %}
+        <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                <h2 style="font-size: 1.125rem; font-weight: 600;">Gastos por Conta</h2>
+                <select id="categoryAccountFilter" class="form-control" style="width: auto; height: 32px; font-size: 0.8rem; padding: 0 0.5rem;">
+                    <option value="all">Todas as Categorias</option>
+                </select>
+            </div>
+            <div style="height: 350px;">
+                <canvas id="accountChart"></canvas>
+            </div>
         </div>
     </div>
 </div>
@@ -198,19 +225,24 @@
             <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1rem;">
                 <div>
                     <h3 style="font-size: 1.125rem; font-weight: 700;">{{ a.nome }}</h3>
-                    <p style="font-size: 0.8125rem; color: var(--text-muted);">Salário: R$ {{ a.salario|floatformat:2 }}</p>
+                    <div style="display: flex; gap: 0.25rem; flex-direction: column; margin-top: 0.25rem;">
+                        <span style="font-size: 0.75rem; color: var(--text-muted);">Base: R$ {{ a.salario|floatformat:2 }}</span>
+                        {% if a.recebido > 0 %}
+                        <span style="font-size: 0.75rem; color: var(--success); font-weight: 600;">+ Extra: R$ {{ a.recebido|floatformat:2 }}</span>
+                        {% endif %}
+                    </div>
                 </div>
                 <div style="text-align: right;">
-                    <div style="font-size: 1.25rem; font-weight: 800; color: {% if a.perc > 90 %}var(--danger){% else %}var(--primary){% endif %};">
+                    <div style="font-size: 1.25rem; font-weight: 800; color: var(--danger);">
                         R$ {{ a.gasto|floatformat:2 }}
                     </div>
-                    <div style="font-size: 0.75rem; color: var(--text-muted);">Gasto no Mês</div>
+                    <div style="font-size: 0.75rem; color: var(--text-muted);">Gasto Total</div>
                 </div>
             </div>
 
             <div style="margin-bottom: 1.25rem;">
                 <div style="display: flex; justify-content: space-between; font-size: 0.75rem; font-weight: 700; margin-bottom: 0.4rem;">
-                    <span>Consumo do Salário</span>
+                    <span>Consumo da Renda Total</span>
                     <span>{{ a.perc|floatformat:1 }}%</span>
                 </div>
                 <div style="height: 10px; background: var(--bg-main); border-radius: 5px; overflow: hidden; border: 1px solid var(--border);">
@@ -220,21 +252,15 @@
 
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; padding-top: 1rem; border-top: 1px dashed var(--border);">
                 <div>
-                    <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase;">Saldo Restante</div>
-                    <div style="font-weight: 700; color: {% if a.saldo < 0 %}var(--danger){% else %}var(--success){% endif %};">
+                    <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase;">Saldo Disponível</div>
+                    <div style="font-size: 1rem; font-weight: 800; color: {% if a.saldo < 0 %}var(--danger){% else %}var(--success){% endif %};">
                         R$ {{ a.saldo|floatformat:2 }}
                     </div>
                 </div>
                 <div style="text-align: right;">
-                    <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase;">Situação</div>
-                    <div style="font-weight: 700; font-size: 0.875rem;">
-                        {% if a.perc > 100 %}
-                            <span style="color: var(--danger);">Excedido</span>
-                        {% elif a.perc > 80 %}
-                            <span style="color: var(--warning);">Crítico</span>
-                        {% else %}
-                            <span style="color: var(--success);">Controlado</span>
-                        {% endif %}
+                    <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase;">Renda Total</div>
+                    <div style="font-size: 1rem; font-weight: 800; color: var(--text-main);">
+                        R$ {{ a.salario|add:a.recebido|floatformat:2 }}
                     </div>
                 </div>
             </div>
@@ -325,7 +351,80 @@
                 borderWidth: 0
             }]
         },
-        options: { responsive: true, maintainAspectRatio: false, cutout: '70%' }
+        options: { 
+            responsive: true, 
+            maintainAspectRatio: false, 
+            cutout: '70%',
+            plugins: {
+                legend: { position: 'bottom' }
+            }
+        }
+    });
+
+    const dadosContas = {{ dados_contas|safe }};
+    const categoryColorMap = {
+        'Transporte': 210, // Azul
+        'Alimentação': 140, // Verde
+        'Moradia': 280, // Roxo
+        'Lazer': 35, // Laranja
+        'Saúde': 0, // Vermelho
+        'Educação': 180, // Ciano
+        'Outros': 245 // Indigo
+    };
+
+    // Popula o filtro de categorias no gráfico de contas
+    const filterSelect = document.getElementById('categoryAccountFilter');
+    const categories = [...new Set(dadosContas.map(d => d.categoria))].sort();
+    categories.forEach(cat => {
+        const opt = document.createElement('option');
+        opt.value = cat;
+        opt.textContent = cat;
+        filterSelect.appendChild(opt);
+    });
+
+    function getColorsForData(data) {
+        const countsByCategory = {};
+        return data.map(item => {
+            const baseHue = categoryColorMap[item.categoria] || 0;
+            if (!countsByCategory[item.categoria]) countsByCategory[item.categoria] = 0;
+            const lightness = 60 - (countsByCategory[item.categoria] * 12);
+            countsByCategory[item.categoria]++;
+            return `hsl(${baseHue}, 70%, ${Math.max(lightness, 25)}%)`;
+        });
+    }
+
+    const accountChart = new Chart(document.getElementById('accountChart'), {
+        type: 'bar',
+        data: {
+            labels: dadosContas.map(d => d.nome),
+            datasets: [{
+                label: 'Valor',
+                data: dadosContas.map(d => d.total),
+                backgroundColor: getColorsForData(dadosContas),
+                borderRadius: 4
+            }]
+        },
+        options: { 
+            indexAxis: 'y',
+            responsive: true, 
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false }
+            },
+            scales: {
+                x: { grid: { display: false } }
+            }
+        }
+    });
+
+    filterSelect.addEventListener('change', (e) => {
+        const val = e.target.value;
+        const filteredData = val === 'all' ? dadosContas : dadosContas.filter(d => d.categoria === val);
+        
+        accountChart.data.labels = filteredData.map(d => d.nome);
+        accountChart.data.datasets[0].data = filteredData.map(d => d.total);
+        accountChart.data.datasets[0].backgroundColor = getColorsForData(filteredData);
+        accountChart.update();
     });
 
     // GRÁFICO FIXAS (COMPARATIVO)

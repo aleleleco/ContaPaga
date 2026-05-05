@@ -4,10 +4,10 @@ from .models import Conta, Lancamento, Categoria, Parcelamento, AgentePagador, R
 class RegraImportacaoForm(forms.ModelForm):
     class Meta:
         model = RegraImportacao
-        fields = ['padrao', 'categoria', 'nome_exibicao']
+        fields = ['padrao', 'conta', 'nome_exibicao']
         widgets = {
             'padrao': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ex: UBER, IFOOD'}),
-            'categoria': forms.Select(attrs={'class': 'form-control'}),
+            'conta': forms.Select(attrs={'class': 'form-control'}),
             'nome_exibicao': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Opcional: Nome Amigável'}),
         }
 
@@ -39,12 +39,19 @@ class LancamentoForm(forms.ModelForm):
 
     class Meta:
         model = Lancamento
-        fields = ['conta', 'novo_nome_conta', 'nova_categoria', 'valor_previsto', 'vencimento', 'descricao']
+        fields = [
+            'conta', 'novo_nome_conta', 'nova_categoria', 
+            'valor_previsto', 'vencimento', 'descricao',
+            'valor_pago', 'data_pagamento', 'comprovante'
+        ]
         widgets = {
             'conta': forms.Select(attrs={'class': 'form-control'}),
             'valor_previsto': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
             'vencimento': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
             'descricao': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Opcional'}),
+            'valor_pago': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
+            'data_pagamento': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+            'comprovante': forms.FileInput(attrs={'class': 'form-control'}),
         }
 
     def __init__(self, *args, **kwargs):

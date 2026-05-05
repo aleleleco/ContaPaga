@@ -154,11 +154,11 @@ class Lancamento(models.Model):
 
 class RegraImportacao(models.Model):
     padrao = models.CharField(max_length=100, help_text="Termo contido no extrato (ex: UBER, IFOOD)")
-    categoria = models.ForeignKey(Categoria, on_delete=models.CASCADE)
+    conta = models.ForeignKey(Conta, on_delete=models.CASCADE)
     nome_exibicao = models.CharField(max_length=100, blank=True, help_text="Nome amigável para o lançamento (opcional)")
 
     def __str__(self):
-        return f"{self.padrao} -> {self.categoria.nome}"
+        return f"{self.padrao} -> {self.conta.nome}"
 
     class Meta:
         verbose_name = "Regra de Importação"
@@ -192,7 +192,7 @@ class OfxTransacao(models.Model):
     
     # Vínculo temporário antes de processar
     conta_sugerida = models.ForeignKey(Conta, on_delete=models.SET_NULL, null=True, blank=True)
-    categoria_manual = models.ForeignKey(Categoria, on_delete=models.SET_NULL, null=True, blank=True)
+    vinculo_por_regra = models.BooleanField(default=False)
     lancamento_criado = models.ForeignKey(Lancamento, on_delete=models.SET_NULL, null=True, blank=True, related_name='ofx_transacoes')
 
     def __str__(self):

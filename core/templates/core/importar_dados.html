@@ -149,7 +149,7 @@
             </div>
         </form>
 
-        {% if transacoes or current_tab != 'pendentes' or agente_id_filter or conta_id_filter %}
+        {% if has_any_ofx or current_tab != 'pendentes' or agente_id_filter or conta_id_filter %}
         <div style="margin-top: 2.5rem;">
             <!-- Filtros Avançados -->
             <div class="card" style="margin-bottom: 1.5rem; padding: 1.25rem;">
@@ -173,6 +173,10 @@
                             {% endfor %}
                         </select>
                     </div>
+                    <div class="form-group" style="margin: 0;">
+                        <label style="font-size: 0.75rem; color: var(--text-muted); font-weight: 700;">Descrição / FITID</label>
+                        <input type="text" name="q" class="form-control" placeholder="Buscar texto..." value="{{ search_query }}">
+                    </div>
                     <div style="display: flex; gap: 0.5rem;">
                         <button type="submit" class="btn btn-primary" style="flex: 1; justify-content: center;">Filtrar</button>
                         <a href="{% url 'core:importar_dados' %}" class="btn" style="border: 1px solid var(--border); background: white;">Limpar</a>
@@ -182,19 +186,19 @@
 
             <!-- Navegação por Abas -->
             <div style="display: flex; gap: 0.5rem; margin-bottom: 1.5rem; overflow-x: auto; padding-bottom: 0.5rem;">
-                <a href="?tab=pendentes{% if agente_id_filter %}&agente_id={{ agente_id_filter }}{% endif %}{% if conta_id_filter %}&conta_id={{ conta_id_filter }}{% endif %}" 
+                <a href="?tab=pendentes{% if agente_id_filter %}&agente_id={{ agente_id_filter }}{% endif %}{% if conta_id_filter %}&conta_id={{ conta_id_filter }}{% endif %}{% if search_query %}&q={{ search_query }}{% endif %}" 
                    class="btn" style="background: {% if current_tab == 'pendentes' %}var(--primary){% else %}white{% endif %}; color: {% if current_tab == 'pendentes' %}white{% else %}var(--text-main){% endif %}; border: 1px solid {% if current_tab == 'pendentes' %}var(--primary){% else %}var(--border){% endif %}; white-space: nowrap;">
                     <i data-lucide="list-todo"></i> Pendentes
                 </a>
-                <a href="?tab=validados{% if agente_id_filter %}&agente_id={{ agente_id_filter }}{% endif %}{% if conta_id_filter %}&conta_id={{ conta_id_filter }}{% endif %}" 
+                <a href="?tab=validados{% if agente_id_filter %}&agente_id={{ agente_id_filter }}{% endif %}{% if conta_id_filter %}&conta_id={{ conta_id_filter }}{% endif %}{% if search_query %}&q={{ search_query }}{% endif %}" 
                    class="btn" style="background: {% if current_tab == 'validados' %}#10b981{% else %}white{% endif %}; color: {% if current_tab == 'validados' %}white{% else %}var(--text-main){% endif %}; border: 1px solid {% if current_tab == 'validados' %}#10b981{% else %}var(--border){% endif %}; white-space: nowrap;">
                     <i data-lucide="check-circle-2"></i> Validados
                 </a>
-                <a href="?tab=processados{% if agente_id_filter %}&agente_id={{ agente_id_filter }}{% endif %}{% if conta_id_filter %}&conta_id={{ conta_id_filter }}{% endif %}" 
+                <a href="?tab=processados{% if agente_id_filter %}&agente_id={{ agente_id_filter }}{% endif %}{% if conta_id_filter %}&conta_id={{ conta_id_filter }}{% endif %}{% if search_query %}&q={{ search_query }}{% endif %}" 
                    class="btn" style="background: {% if current_tab == 'processados' %}#6366f1{% else %}white{% endif %}; color: {% if current_tab == 'processados' %}white{% else %}var(--text-main){% endif %}; border: 1px solid {% if current_tab == 'processados' %}#6366f1{% else %}var(--border){% endif %}; white-space: nowrap;">
                     <i data-lucide="history"></i> Já Importados
                 </a>
-                <a href="?tab=ignorar{% if agente_id_filter %}&agente_id={{ agente_id_filter }}{% endif %}{% if conta_id_filter %}&conta_id={{ conta_id_filter }}{% endif %}" 
+                <a href="?tab=ignorar{% if agente_id_filter %}&agente_id={{ agente_id_filter }}{% endif %}{% if conta_id_filter %}&conta_id={{ conta_id_filter }}{% endif %}{% if search_query %}&q={{ search_query }}{% endif %}" 
                    class="btn" style="background: {% if current_tab == 'ignorar' %}#94a3b8{% else %}white{% endif %}; color: {% if current_tab == 'ignorar' %}white{% else %}var(--text-main){% endif %}; border: 1px solid {% if current_tab == 'ignorar' %}#94a3b8{% else %}var(--border){% endif %}; white-space: nowrap;">
                     <i data-lucide="archive"></i> Ignorados/Transferências
                 </a>
@@ -212,6 +216,12 @@
                     </button>
                     <button class="btn" style="background: white; color: var(--primary); padding: 0.4rem 0.8rem; font-size: 0.8rem;" onclick="openBulkModal('conta')">
                         Vincular Conta
+                    </button>
+                    <button class="btn" style="background: #10b981; color: white; padding: 0.4rem 0.8rem; font-size: 0.8rem;" onclick="submitBulkValidar()">
+                        <i data-lucide="check-circle-2" style="width:14px;"></i> Validar Selecionados
+                    </button>
+                    <button class="btn" style="background: #ef4444; color: white; padding: 0.4rem 0.8rem; font-size: 0.8rem;" onclick="submitBulkIgnorar()">
+                        <i data-lucide="slash" style="width:14px;"></i> Ignorar Selecionados
                     </button>
                     <button class="btn" style="background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.4); padding: 0.4rem 0.8rem; font-size: 0.8rem;" onclick="window.location.hash = 'modal-nova-conta-rapida'">
                         + Criar Nova Conta
@@ -232,6 +242,14 @@
                     ({{ transacoes|length }})
                 </h3>
                 <div style="display: flex; gap: 0.5rem;">
+                    {% if current_tab == 'pendentes' or current_tab == 'validados' %}
+                    <a href="{% url 'core:ofx_reaplicar_regras' %}?tab={{ current_tab }}" class="btn btn-sm" style="background: var(--bg-main); color: var(--primary); border: 1px solid var(--primary);" title="Re-aplica regras de importação nos itens que ainda não têm conta vinculada">
+                        <i data-lucide="refresh-cw" style="width:14px;"></i> Atualizar Regras
+                    </a>
+                    {% endif %}
+                    <a href="{% url 'core:ofx_validar' %}" class="btn btn-sm" style="background: #10b981; color: white; border: none;" onclick="return confirm('Deseja validar TODOS os registros com sugestão?')">
+                        <i data-lucide="check-all" style="width:14px;"></i> Validar Tudo
+                    </a>
                     {% if current_tab != 'processados' %}
                     <button class="btn btn-sm" onclick="toggleAllCheckboxes(true)" style="border: 1px solid var(--border); background: white;">Selecionar Tudo</button>
                     <button class="btn btn-sm" onclick="toggleAllCheckboxes(false)" style="border: 1px solid var(--border); background: white;">Limpar Seleção</button>
@@ -265,7 +283,7 @@
                         </thead>
                         <tbody id="transactions-body">
                             {% for t in transacoes %}
-                            <tr style="{% if t.status == 'transferencia' %}opacity: 0.6; background: #f8fafc;{% endif %}" class="transaction-row">
+                            <tr style="{% if t.status == 'transferencia' %}opacity: 0.6; background: #f8fafc;{% elif t.status == 'ignorado' %}background: #fef2f2; color: #991b1b;{% endif %}" class="transaction-row">
                                 {% if current_tab != 'processados' %}
                                 <td style="text-align: center;">
                                     <input type="checkbox" name="transacao_ids" value="{{ t.id }}" class="row-checkbox" onclick="updateBulkToolbar()">
@@ -291,11 +309,15 @@
                                     {% elif t.status == 'processado' %}
                                         <span class="badge badge-success">PROCESSADO</span>
                                         <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 2px;">Vínculo: {{ t.lancamento_criado.conta.nome }}</div>
-                                    {% elif t.conta_sugerida %}
-                                        <span class="badge" style="background: #dcfce7; color: #166534;">VINCULADO</span>
+                                    {% elif t.status == 'validado' %}
+                                        <span class="badge" style="background: #dcfce7; color: #166534;"><i data-lucide="check" style="width:10px;"></i> VALIDADO</span>
                                         <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 2px;">{{ t.conta_sugerida.nome }}</div>
-                                    {% elif t.categoria_manual %}
-                                        <span class="badge" style="background: #e0f2fe; color: #0369a1;">SUGESTÃO: {{ t.categoria_manual.nome }}</span>
+                                    {% elif t.vinculo_por_regra %}
+                                        <span class="badge" style="background: #e0f2fe; color: #0369a1;"><i data-lucide="zap" style="width:10px;"></i> REGRA</span>
+                                        <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 2px;">{{ t.conta_sugerida.nome }}</div>
+                                    {% elif t.conta_sugerida %}
+                                        <span class="badge" style="background: #fef9c3; color: #854d0e;"><i data-lucide="help-circle" style="width:10px;"></i> SUGESTÃO</span>
+                                        <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 2px;">{{ t.conta_sugerida.nome }}</div>
                                     {% else %}
                                         <span class="badge badge-warning">AGUARDANDO</span>
                                     {% endif %}
@@ -306,6 +328,7 @@
                                             <a href="{% url 'core:dashboard' %}?comp_id={{ t.lancamento_criado.competencia.id }}" class="btn btn-sm" title="Ver Lançamento" style="padding: 0.25rem 0.5rem;"><i data-lucide="eye" style="width: 14px;"></i></a>
                                         {% else %}
                                             <button type="button" onclick="openVincularModal('{{ t.id }}', '{{ t.descricao|addslashes }}', '{{ t.valor|safe }}', '{{ t.conta_sugerida.id|default:'' }}', '{{ t.categoria_manual.id|default:'' }}')" class="btn btn-sm" title="Vincular Conta" style="padding: 0.25rem 0.5rem; border: 1px solid var(--border); background: white;"><i data-lucide="link" style="width: 14px;"></i></button>
+                                            <a href="{% url 'core:ofx_ignorar_transacao' t.pk %}?tab={{ current_tab }}" class="btn btn-sm" title="Ignorar" style="padding: 0.25rem 0.5rem; border: 1px solid var(--border); background: white; color: #ef4444;" onclick="return confirm('Ignorar esta transação?')"><i data-lucide="slash" style="width: 14px;"></i></a>
                                             {% if t.conta_sugerida %}
                                             <a href="{% url 'core:ofx_desvincular' t.pk %}?tab={{ current_tab }}" class="btn btn-sm" title="Remover Vínculo" style="padding: 0.25rem 0.5rem; border: 1px solid var(--border); background: white; color: var(--danger);"><i data-lucide="link-2-off" style="width: 14px;"></i></a>
                                             {% endif %}
@@ -334,7 +357,7 @@
             </div>
             {% endif %}
         </div>
-        {% elif not transacoes and not agente_id_filter and not conta_id_filter %}
+        {% elif not has_any_ofx and not agente_id_filter and not conta_id_filter %}
         <!-- Estado Vazio -->
         <div class="card" style="text-align: center; padding: 4rem 2rem; margin-top: 2rem;">
             <i data-lucide="upload-cloud" style="width: 64px; height: 64px; color: var(--text-muted); margin-bottom: 1.5rem;"></i>
@@ -634,6 +657,20 @@
         }
         
         document.getElementById('bulk-target-id').value = targetId;
+        document.getElementById('bulk-form').submit();
+    }
+
+    function submitBulkValidar() {
+        if (!confirm('Deseja validar os itens selecionados que possuem sugestão de conta?')) return;
+        document.getElementById('bulk-action-type').value = 'validar';
+        document.getElementById('bulk-target-id').value = '1'; // Dummy value since action doesn't use it
+        document.getElementById('bulk-form').submit();
+    }
+
+    function submitBulkIgnorar() {
+        if (!confirm('Deseja ignorar todos os itens selecionados? Eles não gerarão lançamentos.')) return;
+        document.getElementById('bulk-action-type').value = 'ignorar';
+        document.getElementById('bulk-target-id').value = '1'; // Dummy
         document.getElementById('bulk-form').submit();
     }
 

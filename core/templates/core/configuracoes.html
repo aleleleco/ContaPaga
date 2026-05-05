@@ -161,13 +161,18 @@
                 <div>
                     <div style="font-weight: 600; color: var(--text-main);">"{{ r.padrao }}"</div>
                     <div style="font-size: 0.75rem; color: var(--text-muted);">
-                        -> {{ r.categoria.nome }} 
-                        {% if r.nome_exibicao %}| Nome: {{ r.nome_exibicao }}{% endif %}
+                        -> Conta: {{ r.conta.nome }} 
+                        {% if r.nome_exibicao %}| Exibir como: {{ r.nome_exibicao }}{% endif %}
                     </div>
                 </div>
-                <a href="{% url 'core:regra_delete' r.pk %}" style="color: var(--danger);" title="Excluir Regra" onclick="return confirm('Excluir esta regra?')">
-                    <i data-lucide="trash-2" style="width: 18px;"></i>
-                </a>
+                <div style="display: flex; gap: 0.75rem; align-items: center;">
+                    <a href="javascript:void(0)" onclick="openEditRegraModal('{{ r.pk }}', '{{ r.padrao }}', '{{ r.conta.id }}', '{{ r.nome_exibicao|default:'' }}')" style="color: var(--primary);" title="Editar Regra">
+                        <i data-lucide="edit-3" style="width: 18px;"></i>
+                    </a>
+                    <a href="{% url 'core:regra_delete' r.pk %}" style="color: var(--danger);" title="Excluir Regra" onclick="return confirm('Excluir esta regra?')">
+                        <i data-lucide="trash-2" style="width: 18px;"></i>
+                    </a>
+                </div>
             </div>
             {% endfor %}
         </div>
@@ -335,6 +340,34 @@
         </form>
     </div>
 </div>
+
+<!-- Modal Editar Regra -->
+<div id="modal-editar-regra" class="modal">
+    <div class="modal-content">
+        <a href="#" class="modal-close"><i data-lucide="x"></i></a>
+        <h2 style="margin-bottom: 1.5rem;">Editar Regra de Importação</h2>
+        <form id="edit-regra-form" action="" method="post">
+            {% csrf_token %}
+            <div class="form-group">
+                <label>Padrão (Termo no Extrato)</label>
+                <input type="text" name="padrao" id="edit_regra_padrao" class="form-control" required>
+            </div>
+            <div class="form-group">
+                <label>Conta Vinculada</label>
+                <select name="conta" id="edit_regra_conta" class="form-control" required>
+                    {% for c in contas %}
+                    <option value="{{ c.id }}">{{ c.nome }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Exibir como (Opcional)</label>
+                <input type="text" name="nome_exibicao" id="edit_regra_nome" class="form-control">
+            </div>
+            <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 1rem; justify-content: center;">Salvar Alterações</button>
+        </form>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
@@ -379,6 +412,17 @@
         }
 
         window.location.hash = 'modal-editar-categoria';
+    }
+
+    function openEditRegraModal(pk, padrao, contaId, nome) {
+        const form = document.getElementById('edit-regra-form');
+        form.action = `/regra/${pk}/editar/`;
+        
+        document.getElementById('edit_regra_padrao').value = padrao;
+        document.getElementById('edit_regra_conta').value = contaId;
+        document.getElementById('edit_regra_nome').value = nome;
+
+        window.location.hash = 'modal-editar-regra';
     }
 
     // Toggle logic for both create and edit modals

@@ -41,7 +41,7 @@ class ContaBancariaAdmin(admin.ModelAdmin):
 
 @admin.register(RegraImportacao)
 class RegraImportacaoAdmin(admin.ModelAdmin):
-    list_display = ('padrao', 'categoria', 'nome_exibicao')
+    list_display = ('padrao', 'conta', 'nome_exibicao')
 
 @admin.register(OfxArquivo)
 class OfxArquivoAdmin(admin.ModelAdmin):

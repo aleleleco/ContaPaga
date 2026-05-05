@@ -43,7 +43,7 @@ def dashboard(request):
             competencia.save()
             return redirect(f"{reverse('core:dashboard')}?comp_id={competencia.id}")
     
-    lancamentos = Lancamento.objects.filter(competencia=competencia).select_related('conta__categoria').order_by('vencimento')
+    lancamentos = Lancamento.objects.filter(competencia=competencia).select_related('conta__categoria').prefetch_related('ofx_transacoes').order_by('vencimento')
     
     # Filtros por tipo de categoria
     saidas = lancamentos.filter(conta__categoria__tipo='saida')
@@ -52,10 +52,11 @@ def dashboard(request):
     stats = {
         'total_a_pagar': saidas.filter(status='pendente').aggregate(Sum('valor_previsto'))['valor_previsto__sum'] or 0,
         'total_pago': saidas.filter(status='pago').aggregate(Sum('valor_pago'))['valor_pago__sum'] or 0,
-        'total_descontos': saidas.aggregate(Sum('desconto'))['desconto__sum'] or 0,
+        'total_descontos': saidas.filter(status='pago').aggregate(Sum('desconto'))['desconto__sum'] or 0,
         'total_salarios': entradas.filter(conta__categoria__is_salary=True, status='pago').aggregate(Sum('valor_pago'))['valor_pago__sum'] or 0,
         'outras_receitas': entradas.filter(conta__categoria__is_salary=False, status='pago').aggregate(Sum('valor_pago'))['valor_pago__sum'] or 0,
     }
+    stats['total_final'] = (stats['total_salarios'] + stats['outras_receitas']) - stats['total_pago']
     
     context = {
         'competencia': competencia,
@@ -152,7 +153,7 @@ def pagamento_registrar(request, pk):
 def lancamento_edit(request, pk):
     lancamento = get_object_or_404(Lancamento, pk=pk)
     if request.method == 'POST':
-        form = LancamentoForm(request.POST, instance=lancamento)
+        form = LancamentoForm(request.POST, request.FILES, instance=lancamento)
         if form.is_valid():
             form.save()
             return redirect(reverse('core:dashboard') + f'?comp_id={lancamento.competencia.id}')
@@ -184,20 +185,47 @@ def relatorios(request):
     todas_competencias = Competencia.objects.all().order_by('-ano', '-mes')
     todas_contas = Conta.objects.values('nome').annotate(id=Min('id')).order_by('nome')
     
-    # 1. Gastos por Categoria (Gráfico Rosca)
+    # 1. Gastos por Categoria (Gráfico Rosca) - Apenas SAÍDAS PAGAS
     gastos_por_categoria = Lancamento.objects.filter(
-        competencia=comp_atual
-    ).values('conta__categoria__nome').annotate(total=Sum('valor_previsto'))
+        competencia=comp_atual,
+        conta__categoria__tipo='saida',
+        status='pago'
+    ).values('conta__categoria__nome').annotate(total=Sum('valor_pago'))
     
     labels_categorias = [item['conta__categoria__nome'] for item in gastos_por_categoria]
-    valores_categorias = [float(item['total']) for item in gastos_por_categoria]
+    valores_categorias = [float(item['total'] or 0) for item in gastos_por_categoria]
     
-    total_atual = Lancamento.objects.filter(competencia=comp_atual, status='pago').aggregate(Sum('valor_pago'))['valor_pago__sum'] or 0
-    total_anterior = 0
-    diff_valor = 0
-    if comp_anterior:
-        total_anterior = Lancamento.objects.filter(competencia=comp_anterior, status='pago').aggregate(Sum('valor_pago'))['valor_pago__sum'] or 0
-        diff_valor = abs(total_atual - total_anterior)
+    # 1.1 Gastos por Conta - Apenas SAÍDAS PAGAS
+    gastos_por_conta = Lancamento.objects.filter(
+        competencia=comp_atual,
+        conta__categoria__tipo='saida',
+        status='pago'
+    ).values('conta__nome', 'conta__categoria__nome').annotate(total=Sum('valor_pago')).order_by('-total')
+    
+    dados_contas = []
+    for item in gastos_por_conta:
+        dados_contas.append({
+            'nome': item['conta__nome'],
+            'categoria': item['conta__categoria__nome'],
+            'total': float(item['total'] or 0)
+        })
+    
+    import json
+    dados_contas_json = json.dumps(dados_contas)
+    
+    # TOTAIS SEPARADOS
+    def get_totals(comp):
+        if not comp: return 0, 0
+        pago = Lancamento.objects.filter(competencia=comp, status='pago', conta__categoria__tipo='saida').aggregate(Sum('valor_pago'))['valor_pago__sum'] or 0
+        recebido = Lancamento.objects.filter(competencia=comp, status='pago', conta__categoria__tipo='entrada').aggregate(Sum('valor_pago'))['valor_pago__sum'] or 0
+        return float(pago), float(recebido)
+
+    total_pago, total_recebido = get_totals(comp_atual)
+    total_anterior_pago, total_anterior_recebido = get_totals(comp_anterior)
+    
+    diff_pago = total_pago - total_anterior_pago
+    diff_recebido = total_recebido - total_anterior_recebido
+    saldo_final = total_recebido - total_pago
     
     # 2. Comparativo de Contas Fixas (Tabela + Gráfico Barras)
     # Agrupa por nome para evitar duplicatas na visualização
@@ -282,22 +310,35 @@ def relatorios(request):
     # 5. Gastos por Agente Pagador (Nova Funcionalidade)
     agentes_stats = []
     for agente in AgentePagador.objects.all():
-        gasto_agente = Lancamento.objects.filter(competencia=comp_atual, agente_pagador=agente).aggregate(Sum('valor_pago'))['valor_pago__sum'] or 0
-        saldo = agente.salario - gasto_agente
+        # Filtra apenas os pagos para ser consistente com a regra de caixa
+        qs_agente = Lancamento.objects.filter(competencia=comp_atual, agente_pagador=agente, status='pago')
+        
+        gasto_agente = qs_agente.filter(conta__categoria__tipo='saida').aggregate(Sum('valor_pago'))['valor_pago__sum'] or 0
+        recebido_agente = qs_agente.filter(conta__categoria__tipo='entrada').aggregate(Sum('valor_pago'))['valor_pago__sum'] or 0
+        
+        # Saldo = (Salário Base + Outras Receitas) - Gastos
+        saldo = (float(agente.salario) + float(recebido_agente)) - float(gasto_agente)
+        total_renda = float(agente.salario) + float(recebido_agente)
+        
         agentes_stats.append({
             'nome': agente.nome,
-            'salario': agente.salario,
-            'gasto': gasto_agente,
-            'saldo': saldo,
-            'perc': (float(gasto_agente) / float(agente.salario) * 100) if agente.salario > 0 else 0
+            'salario': float(agente.salario),
+            'recebido': float(recebido_agente),
+            'gasto': float(gasto_agente),
+            'saldo': float(saldo),
+            'perc': (float(gasto_agente) / total_renda * 100) if total_renda > 0 else 0
         })
 
     context = {
         'labels_categorias': labels_categorias,
         'valores_categorias': valores_categorias,
-        'total_atual': total_atual,
-        'total_anterior': total_anterior,
-        'diff_valor': diff_valor,
+        'dados_contas': dados_contas_json,
+        'total_pago': total_pago,
+        'total_recebido': total_recebido,
+        'saldo_final': saldo_final,
+        'diff_pago': diff_pago,
+        'diff_recebido': diff_recebido,
+        'comp_anterior': comp_anterior,
         'comparativo_fixas': comparativo_fixas,
         'labels_fixas': labels_fixas,
         'valores_fixas_atual': valores_fixas_atual,
@@ -519,6 +560,14 @@ def regra_create(request):
             form.save()
     return redirect('core:configuracoes')
 
+def regra_edit(request, pk):
+    regra = get_object_or_404(RegraImportacao, pk=pk)
+    if request.method == 'POST':
+        form = RegraImportacaoForm(request.POST, instance=regra)
+        if form.is_valid():
+            form.save()
+    return redirect('core:configuracoes')
+
 def regra_delete(request, pk):
     regra = get_object_or_404(RegraImportacao, pk=pk)
     regra.delete()
@@ -667,6 +716,16 @@ def importar_dados(request):
                                     match = p
                                     break
 
+                        # Prioridade: Regra > Match Histórico
+                        conta_final = None
+                        por_regra = False
+                        
+                        if sugestao_regra:
+                            conta_final = sugestao_regra.conta
+                            por_regra = True
+                        elif match:
+                            conta_final = match.conta
+
                         OfxTransacao.objects.create(
                             arquivo=ofx_arq,
                             fitid=transaction.id,
@@ -675,8 +734,8 @@ def importar_dados(request):
                             descricao=t_memo,
                             tipo=transaction.type,
                             status=status,
-                            conta_sugerida=match.conta if match else None,
-                            categoria_manual=sugestao_regra.categoria if sugestao_regra else None
+                            conta_sugerida=conta_final,
+                            vinculo_por_regra=por_regra
                         )
                         transacoes_criadas += 1
                 except Exception as e:
@@ -750,12 +809,12 @@ def importar_dados(request):
     tab = request.GET.get('tab', 'pendentes')
     agente_id_filter = request.GET.get('agente_id')
     conta_id_filter = request.GET.get('conta_id')
+    search_query = request.GET.get('q', '')
     
     transacoes_qs = OfxTransacao.objects.all().select_related(
         'arquivo__agente', 
         'arquivo__conta_bancaria', 
         'conta_sugerida', 
-        'categoria_manual',
         'lancamento_criado'
     ).order_by('-data', '-id')
     
@@ -764,6 +823,12 @@ def importar_dados(request):
         transacoes_qs = transacoes_qs.filter(arquivo__agente_id=agente_id_filter)
     if conta_id_filter:
         transacoes_qs = transacoes_qs.filter(arquivo__conta_bancaria_id=conta_id_filter)
+    if search_query:
+        from django.db.models import Q
+        transacoes_qs = transacoes_qs.filter(
+            Q(descricao__icontains=search_query) | 
+            Q(fitid__icontains=search_query)
+        )
         
     # Filtragem por Aba
     if tab == 'pendentes':
@@ -780,6 +845,7 @@ def importar_dados(request):
         'current_tab': tab,
         'agente_id_filter': agente_id_filter,
         'conta_id_filter': conta_id_filter,
+        'search_query': search_query,
         'agentes': AgentePagador.objects.all().order_by('nome'),
         'categorias': Categoria.objects.all().order_by('nome'),
         'categorias_entrada': Categoria.objects.filter(tipo='entrada').order_by('nome'),
@@ -789,6 +855,7 @@ def importar_dados(request):
         'contas_legado': contas_legado,
         'parcelamentos_legado': parcelamentos_legado,
         'competencias_legado': competencias_dict.values(),
+        'has_any_ofx': OfxTransacao.objects.exists(),
     }
     return render(request, 'core/importar_dados.html', context)
 
@@ -916,10 +983,54 @@ def legacy_migrate_parcelamento(request, legacy_id):
         
     return redirect('core:importar_dados')
 
+def ofx_reaplicar_regras(request):
+    # Re-aplica regras e sugestões em registros pendentes ou validados sem conta
+    from django.db.models import Q
+    transacoes = OfxTransacao.objects.filter(
+        Q(status='lido') | (Q(status='validado') & Q(conta_sugerida__isnull=True))
+    )
+    regras = list(RegraImportacao.objects.all())
+    
+    atualizados = 0
+    for t in transacoes:
+        changed = False
+        memo_upper = t.descricao.upper()
+        
+        # 1. Regras de Importação (Vínculo Direto com Conta)
+        for regra in regras:
+            if regra.padrao.upper() in memo_upper:
+                if t.conta_sugerida != regra.conta:
+                    t.conta_sugerida = regra.conta
+                    t.vinculo_por_regra = True
+                    changed = True
+                break
+        
+        # 2. Busca Sugestão por Conciliação (Conta)
+        # Se ainda não tem conta vinculada, tenta buscar por proximidade de valor/data
+        if not t.conta_sugerida:
+            abs_val = abs(float(t.valor))
+            comp = Competencia.objects.filter(mes=t.data.month, ano=t.data.year).first()
+            if comp:
+                posiveis = Lancamento.objects.filter(competencia=comp)
+                for p in posiveis:
+                    p_val = float(p.valor_pago or p.valor_previsto)
+                    if abs(abs_val - p_val) < 1.0 and abs((t.data - p.vencimento).days) <= 3:
+                        t.conta_sugerida = p.conta
+                        changed = True
+                        break
+        
+        if changed:
+            t.save()
+            atualizados += 1
+            
+    messages.success(request, f"Sugestões atualizadas! {atualizados} transações receberam novos vínculos ou categorias.")
+    return redirect(reverse('core:importar_dados') + '#ofx')
+
 def ofx_validar(request):
     # Marca todos os 'lido' como 'validado'
     OfxTransacao.objects.filter(status='lido').update(status='validado')
-    return redirect(reverse('core:importar_dados') + '#ofx')
+    messages.success(request, "Transações validadas com sucesso!")
+    return redirect(reverse('core:importar_dados') + '?tab=validados#ofx')
 
 def ofx_vincular_conta(request, pk):
     tab = request.GET.get('tab', 'pendentes')
@@ -930,7 +1041,8 @@ def ofx_vincular_conta(request, pk):
             transacao.conta_sugerida = get_object_or_404(Conta, id=conta_id)
             transacao.status = 'validado'
             transacao.save()
-    return redirect(reverse('core:importar_dados') + f'?tab={tab}#ofx')
+            messages.success(request, f"Transação vinculada à conta {transacao.conta_sugerida.nome}")
+    return redirect(reverse('core:importar_dados') + '?tab=validados#ofx')
 
 def processar_vinculados(request):
     # Processa apenas transações validadas que tenham conta_sugerida
@@ -947,37 +1059,54 @@ def processar_vinculados(request):
         lanc = Lancamento.objects.filter(conta=t.conta_sugerida, competencia=comp).first()
         
         if lanc:
-            # ATUALIZA lançamento existente com dados do banco
-            lanc.valor_pago = abs(t.valor)
+            # ACUMULA lançamento existente com dados do banco usando F() para segurança atômica
+            from django.db.models import F
+            
+            # Se o valor estava nulo, tratamos como 0 antes de somar
+            if lanc.valor_pago is None: lanc.valor_pago = 0
+            if lanc.valor_previsto is None: lanc.valor_previsto = 0
+            
+            # Lógica sensível ao tipo de conta:
+            # Se Saída: t.valor costuma ser negativo (ex: -90), queremos somar +90 ao gasto.
+            # Se Entrada: t.valor costuma ser positivo (ex: +100), queremos somar +100 à receita.
+            diff = -t.valor if t.conta_sugerida.categoria.tipo == 'saida' else t.valor
+            
+            lanc.valor_pago = F('valor_pago') + diff
+            
+            # Para o previsto: se era uma conta com valor 0 ou importação direta.
+            lanc.valor_previsto = F('valor_previsto') + diff
+            
             lanc.data_pagamento = t.data
             lanc.status = 'pago'
-            lanc.transacao_id = t.fitid
-            # Se não tinha valor previsto, assume o do banco
-            if not lanc.valor_previsto:
-                lanc.valor_previsto = abs(t.valor)
+            lanc.transacao_id = None 
             lanc.save()
+            # Forçamos o reload do objeto para a próxima iteração se houver mais transações para a mesma conta
+            lanc.refresh_from_db()
         else:
             # CRIA novo lançamento se não existir
+            diff = -t.valor if t.conta_sugerida.categoria.tipo == 'saida' else t.valor
             lanc = Lancamento.objects.create(
                 conta=t.conta_sugerida,
                 competencia=comp,
-                valor_previsto=abs(t.valor),
-                valor_pago=abs(t.valor),
+                valor_previsto=diff,
+                valor_pago=diff,
                 vencimento=t.data,
                 data_pagamento=t.data,
                 descricao=f"Importado OFX: {t.descricao}",
                 status='pago',
-                agente_pagador=t.arquivo.agente,
-                transacao_id=t.fitid
+                agente_pagador=t.arquivo.agente
             )
 
-        # Marca a transação OFX como processada
+        # Marca a transação OFX como processada e vincula ao lançamento
         t.status = 'processado'
         t.lancamento_criado = lanc
         t.save()
         processados_count += 1
         
-    return redirect(reverse('core:importar_dados') + '#ofx')
+    if processados_count > 0:
+        messages.success(request, f"{processados_count} lançamentos foram criados com sucesso!")
+    
+    return redirect(reverse('core:importar_dados') + '?tab=processados#ofx')
 
 def ofx_limpar_staging(request):
     tab = request.GET.get('tab', 'pendentes')
@@ -1012,9 +1141,36 @@ def ofx_update_categoria(request, pk):
 def ofx_desvincular(request, pk):
     tab = request.GET.get('tab', 'pendentes')
     transacao = get_object_or_404(OfxTransacao, pk=pk)
+    
+    # Se já estava processada, precisamos subtrair o valor do lançamento original
+    if transacao.status == 'processado' and transacao.lancamento_criado:
+        lanc = transacao.lancamento_criado
+        diff = -transacao.valor if transacao.conta_sugerida.categoria.tipo == 'saida' else transacao.valor
+        
+        from django.db.models import F
+        lanc.valor_pago = F('valor_pago') - diff
+        lanc.valor_previsto = F('valor_previsto') - diff
+        lanc.save()
+        
+        # Se o lançamento ficar com valor 0, talvez queira deletar ou manter pendente
+        # Por segurança, mantemos mas limpamos o status se chegar a zero
+        lanc.refresh_from_db()
+        if lanc.valor_pago <= 0:
+            lanc.status = 'pendente'
+            lanc.save()
+            
     transacao.conta_sugerida = None
+    transacao.lancamento_criado = None
     transacao.status = 'lido'
     transacao.save()
+    return redirect(reverse('core:importar_dados') + f'?tab={tab}#ofx')
+
+def ofx_ignorar_transacao(request, pk):
+    transacao = get_object_or_404(OfxTransacao, pk=pk)
+    tab = request.GET.get('tab', 'pendentes')
+    transacao.status = 'ignorado'
+    transacao.save()
+    messages.warning(request, f"Transação '{transacao.descricao}' ignorada.")
     return redirect(reverse('core:importar_dados') + f'?tab={tab}#ofx')
 
 def ofx_bulk_action(request):
@@ -1035,5 +1191,32 @@ def ofx_bulk_action(request):
         elif action_type == 'conta':
             conta = get_object_or_404(Conta, id=target_id)
             transacoes.update(conta_sugerida=conta, status='validado')
+        elif action_type == 'validar':
+            # Valida os selecionados (removemos o filtro de conta_sugerida para não confundir o usuário)
+            transacoes.update(status='validado')
+            tab = 'validados' # Força ida para a aba de validados
+            messages.success(request, f"{transacoes.count()} transações validadas.")
+        elif action_type == 'ignorar':
+            transacoes.update(status='ignorado')
+            messages.warning(request, f"{transacoes.count()} transações ignoradas.")
             
     return redirect(reverse('core:importar_dados') + f'?tab={tab}#ofx')
+
+from django.http import JsonResponse
+def lancamento_ofx_detalhes(request, pk):
+    lancamento = get_object_or_404(Lancamento, pk=pk)
+    transacoes = lancamento.ofx_transacoes.all()
+    
+    data = {
+        'lancamento': lancamento.conta.nome,
+        'total': float(lancamento.valor_pago or 0),
+        'transacoes': [
+            {
+                'data': t.data.strftime('%d/%m/%Y'),
+                'descricao': t.descricao,
+                'valor': float(t.valor),
+                'banco': t.arquivo.banco_nome
+            } for t in transacoes
+        ]
+    }
+    return JsonResponse(data)
