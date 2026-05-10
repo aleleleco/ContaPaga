@@ -177,7 +177,7 @@
                 {% if p.observacao %}<i data-lucide="info" style="width: 12px; display: inline; vertical-align: middle;"></i> {{ p.observacao|truncatechars:30 }}{% else %}Sem observações{% endif %}
             </div>
             <div style="display: flex; gap: 1rem; align-items: center;">
-                <a href="javascript:void(0)" onclick="openEditModal('{{ p.pk }}', '{{ p.nome }}', '{{ p.categoria.id }}', '{{ p.valor_total }}', '{{ p.valor_parcela }}', '{{ p.total_parcelas }}', '{{ p.data_inicio|date:'Y-m-d' }}', '{{ p.observacao|default:'' }}')" style="color: var(--primary);" title="Editar">
+                <a href="javascript:void(0)" onclick="openEditModal('{{ p.pk }}', '{{ p.nome|escapejs }}', '{{ p.categoria.id }}', '{{ p.valor_total }}', '{{ p.valor_parcela }}', '{{ p.valor_entrada }}', '{{ p.valor_parcela_final }}', '{{ p.total_parcelas }}', '{{ p.data_inicio|date:'Y-m-d' }}', '{{ p.observacao|default:''|escapejs }}', '{% if p.boleto %}{{ p.boleto.url }}{% endif %}')" style="color: var(--primary);" title="Editar">
                     <i data-lucide="edit-3" style="width: 18px;"></i>
                 </a>
                 <a href="{% url 'core:parcelamento_delete' p.pk %}" class="btn-delete" onclick="return confirm('Excluir este parcelamento?')" title="Excluir">
@@ -199,7 +199,7 @@
     <div class="modal-content">
         <a href="#" class="modal-close"><i data-lucide="x"></i></a>
         <h2 style="margin-bottom: 1.5rem;">Cadastrar Parcelamento</h2>
-        <form action="{% url 'core:parcelamentos_list' %}" method="post">
+        <form action="{% url 'core:parcelamentos_list' %}" method="post" enctype="multipart/form-data">
             {% csrf_token %}
             {% for field in form %}
             <div class="form-group">
@@ -217,7 +217,7 @@
     <div class="modal-content">
         <a href="#" class="modal-close"><i data-lucide="x"></i></a>
         <h2 style="margin-bottom: 1.5rem;">Editar Parcelamento</h2>
-        <form id="edit-p-form" action="" method="post">
+        <form id="edit-p-form" action="" method="post" enctype="multipart/form-data">
             {% csrf_token %}
             <div class="form-group">
                 <label>Nome</label>
@@ -243,12 +243,29 @@
             </div>
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
                 <div class="form-group">
+                    <label>Valor Entrada</label>
+                    <input type="number" name="valor_entrada" id="id_valor_entrada_edit" class="form-control" step="0.01">
+                </div>
+                <div class="form-group">
+                    <label>Parcela Final</label>
+                    <input type="number" name="valor_parcela_final" id="id_valor_parcela_final_edit" class="form-control" step="0.01">
+                </div>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                <div class="form-group">
                     <label>Total Parcelas</label>
                     <input type="number" name="total_parcelas" id="id_total_parcelas_edit" class="form-control" required>
                 </div>
                 <div class="form-group">
                     <label>Data Início</label>
                     <input type="date" name="data_inicio" id="id_data_inicio_edit" class="form-control" required>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Boleto (PDF/Imagem)</label>
+                <input type="file" name="boleto" id="id_boleto_edit" class="form-control">
+                <div id="current-boleto" style="font-size: 0.75rem; margin-top: 0.5rem; color: var(--text-muted); display: none;">
+                    Arquivo atual: <a href="#" id="link-boleto" target="_blank">Ver Boleto</a>
                 </div>
             </div>
             <div class="form-group">
@@ -327,7 +344,7 @@
         }
     });
 
-    function openEditModal(pk, nome, catId, total, parcela, num, data, obs) {
+    function openEditModal(pk, nome, catId, total, parcela, entrada, p_final, num, data, obs, boletoUrl) {
         const form = document.getElementById('edit-p-form');
         form.action = `/parcelamentos/${pk}/editar/`;
         
@@ -335,9 +352,19 @@
         document.getElementById('id_categoria_edit').value = catId;
         document.getElementById('id_valor_total_edit').value = total.replace(',', '.');
         document.getElementById('id_valor_parcela_edit').value = parcela.replace(',', '.');
+        document.getElementById('id_valor_entrada_edit').value = entrada.replace(',', '.');
+        document.getElementById('id_valor_parcela_final_edit').value = p_final.replace(',', '.');
         document.getElementById('id_total_parcelas_edit').value = num;
         document.getElementById('id_data_inicio_edit').value = data;
         document.getElementById('id_observacao_edit').value = obs;
+
+        const currentBoletoDiv = document.getElementById('current-boleto');
+        if (boletoUrl && boletoUrl !== 'None' && boletoUrl !== '') {
+            currentBoletoDiv.style.display = 'block';
+            document.getElementById('link-boleto').href = boletoUrl;
+        } else {
+            currentBoletoDiv.style.display = 'none';
+        }
 
         window.location.hash = 'modal-editar-parcelamento';
     }

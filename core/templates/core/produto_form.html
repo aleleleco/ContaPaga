@@ -1,0 +1,83 @@
+{% extends 'core/base.html' %}
+
+{% block title %}Editar Produto: {{ produto.nome }} - ContaPaga{% endblock %}
+{% block header_title %}Editar Produto{% endblock %}
+
+{% block content %}
+<div style="max-width: 800px; margin: 0 auto;">
+    <div style="margin-bottom: 2rem;">
+        <a href="{% url 'core:produtos_list' %}" class="btn" style="background: transparent; padding: 0; color: var(--text-muted); margin-bottom: 1rem;">
+            <i data-lucide="arrow-left" style="width: 18px;"></i> Voltar para Produtos
+        </a>
+    </div>
+
+    <div class="card">
+        <form action="" method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+            <div class="form-group">
+                <label>Nome do Produto</label>
+                {{ form.nome }}
+            </div>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+                <div class="form-group">
+                    <label>Data de Aquisição</label>
+                    {{ form.data_aquisicao }}
+                </div>
+                <div class="form-group">
+                    <label>Valor Pago</label>
+                    {{ form.valor }}
+                </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+                <div class="form-group">
+                    <label>Tempo de Garantia</label>
+                    {{ form.tempo_garantia }}
+                </div>
+                <div class="form-group">
+                    <label>Unidade</label>
+                    {{ form.unidade_garantia }}
+                </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+                <div class="form-group">
+                    <label>Nota Fiscal (XML/PDF)</label>
+                    {{ form.nota_fiscal }}
+                    {% if produto.nota_fiscal %}
+                    <div style="font-size: 0.75rem; margin-top: 0.5rem; color: var(--text-muted);">
+                        Arquivo atual: <a href="{{ produto.nota_fiscal.url }}" target="_blank">{{ produto.nota_fiscal.name }}</a>
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="form-group">
+                    <label>Contrato Garantia (PDF)</label>
+                    {{ form.contrato_garantia }}
+                    {% if produto.contrato_garantia %}
+                    <div style="font-size: 0.75rem; margin-top: 0.5rem; color: var(--text-muted);">
+                        Arquivo atual: <a href="{{ produto.contrato_garantia.url }}" target="_blank">{{ produto.contrato_garantia.name }}</a>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+                <div class="form-group">
+                    <label>Associar a Lançamento</label>
+                    {{ form.lancamento }}
+                </div>
+                <div class="form-group">
+                    <label>Associar a Parcelamento</label>
+                    {{ form.parcelamento }}
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 1rem; margin-top: 2rem;">
+                <button type="submit" class="btn btn-primary" style="flex: 1; justify-content: center;">Salvar Alterações</button>
+                <a href="{% url 'core:produtos_list' %}" class="btn" style="background: #f1f5f9; color: var(--text-main); flex: 1; justify-content: center;">Cancelar</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

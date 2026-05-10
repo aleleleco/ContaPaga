@@ -1,0 +1,149 @@
+{% extends 'core/base.html' %}
+
+{% block title %}Produtos e Garantias - ContaPaga{% endblock %}
+{% block header_title %}Produtos, NF-e e Garantias{% endblock %}
+
+{% block extra_css %}
+<style>
+    .produtos-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+        gap: 1.5rem;
+        margin-top: 1rem;
+    }
+    .produto-card {
+        transition: transform 0.2s, border-color 0.2s;
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+    .produto-card:hover {
+        transform: translateY(-4px);
+        border-color: var(--primary);
+    }
+    .status-badge {
+        font-size: 0.7rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        padding: 0.25rem 0.6rem;
+        border-radius: 20px;
+    }
+    .status-active { background: #dcfce7; color: #166534; }
+    .status-expired { background: #fee2e2; color: #991b1b; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+    <div>
+        <p style="color: var(--text-muted);">Gerencie seus bens, notas fiscais e prazos de garantia em um só lugar.</p>
+    </div>
+    <a href="#modal-novo-produto" class="btn btn-primary">
+        <i data-lucide="plus"></i> Novo Produto
+    </a>
+</div>
+
+<div class="produtos-grid">
+    {% for p in produtos %}
+    <div class="card produto-card">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+            <div>
+                <h3 style="font-size: 1.125rem; font-weight: 700; color: var(--text-main); margin-bottom: 0.25rem;">{{ p.nome }}</h3>
+                <div style="font-size: 0.8125rem; color: var(--text-muted);">Adquirido em {{ p.data_aquisicao|date:"d/m/Y" }}</div>
+            </div>
+            <span class="status-badge {% if p.garantia_ativa %}status-active{% else %}status-expired{% endif %}">
+                {% if p.garantia_ativa %}Garantia Ativa{% else %}Expirada{% endif %}
+            </span>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; padding: 1rem; background: var(--bg-main); border-radius: 12px;">
+            <div>
+                <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700;">Valor</div>
+                <div style="font-size: 0.9375rem; font-weight: 700;">R$ {{ p.valor|floatformat:2 }}</div>
+            </div>
+            <div>
+                <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700;">Expira em</div>
+                <div style="font-size: 0.9375rem; font-weight: 700;">{{ p.data_fim_garantia|date:"d/m/Y" }}</div>
+            </div>
+        </div>
+
+        <div style="display: flex; gap: 0.5rem; margin-top: auto;">
+            {% if p.nota_fiscal %}
+            <a href="{{ p.nota_fiscal.url }}" target="_blank" class="btn" style="flex: 1; font-size: 0.75rem; background: #f1f5f9; color: var(--text-main); padding: 0.5rem;" title="Ver NF-e/DANFE">
+                <i data-lucide="file-text" style="width: 14px;"></i> NF-e
+            </a>
+            {% endif %}
+            {% if p.contrato_garantia %}
+            <a href="{{ p.contrato_garantia.url }}" target="_blank" class="btn" style="flex: 1; font-size: 0.75rem; background: #f1f5f9; color: var(--text-main); padding: 0.5rem;" title="Ver Contrato">
+                <i data-lucide="shield" style="width: 14px;"></i> Garantia
+            </a>
+            {% endif %}
+            <a href="{% url 'core:produto_detalhe' p.pk %}" class="btn" style="background: var(--primary); color: white; padding: 0.5rem;">
+                <i data-lucide="eye" style="width: 14px;"></i>
+            </a>
+        </div>
+    </div>
+    {% empty %}
+    <div class="card" style="grid-column: 1 / -1; text-align: center; padding: 4rem;">
+        <i data-lucide="package" style="width: 48px; height: 48px; color: var(--border); margin-bottom: 1rem;"></i>
+        <p style="color: var(--text-muted);">Nenhum produto cadastrado.</p>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Modal Novo Produto -->
+<div id="modal-novo-produto" class="modal">
+    <div class="modal-content" style="max-width: 600px;">
+        <a href="#" class="modal-close"><i data-lucide="x"></i></a>
+        <h2 style="margin-bottom: 1.5rem;">Cadastrar Produto</h2>
+        <form action="{% url 'core:produtos_list' %}" method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+            <div class="form-group">
+                <label>Nome do Produto</label>
+                {{ form.nome }}
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                <div class="form-group">
+                    <label>Data de Aquisição</label>
+                    {{ form.data_aquisicao }}
+                </div>
+                <div class="form-group">
+                    <label>Valor Pago</label>
+                    {{ form.valor }}
+                </div>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                <div class="form-group">
+                    <label>Tempo de Garantia</label>
+                    {{ form.tempo_garantia }}
+                </div>
+                <div class="form-group">
+                    <label>Unidade</label>
+                    {{ form.unidade_garantia }}
+                </div>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                <div class="form-group">
+                    <label>Nota Fiscal (XML/PDF)</label>
+                    {{ form.nota_fiscal }}
+                </div>
+                <div class="form-group">
+                    <label>Contrato Garantia (PDF)</label>
+                    {{ form.contrato_garantia }}
+                </div>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                <div class="form-group">
+                    <label>Associar a Lançamento</label>
+                    {{ form.lancamento }}
+                </div>
+                <div class="form-group">
+                    <label>Associar a Parcelamento</label>
+                    {{ form.parcelamento }}
+                </div>
+            </div>
+            <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 1rem; justify-content: center;">Salvar Produto</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

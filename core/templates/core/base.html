@@ -269,6 +269,7 @@
                 <li><a href="{% url 'core:competencias_list' %}" class="{% if request.resolver_match.url_name == 'competencias_list' %}active{% endif %}"><i data-lucide="calendar"></i> Competências</a></li>
                 <li><a href="{% url 'core:importar_dados' %}" class="{% if request.resolver_match.url_name == 'importar_dados' %}active{% endif %}"><i data-lucide="download-cloud"></i> Importar Dados</a></li>
                 <li><a href="{% url 'core:parcelamentos_list' %}" class="{% if request.resolver_match.url_name == 'parcelamentos_list' %}active{% endif %}"><i data-lucide="layers"></i> Contas Parceladas</a></li>
+                <li><a href="{% url 'core:produtos_list' %}" class="{% if request.resolver_match.url_name == 'produtos_list' or request.resolver_match.url_name == 'produto_detalhe' %}active{% endif %}"><i data-lucide="shield-check"></i> Produtos/NF-e/Garantias</a></li>
                 <li><a href="#"><i data-lucide="credit-card"></i> Contas Fixas</a></li>
                 <li><a href="{% url 'core:relatorios' %}" class="{% if request.resolver_match.url_name == 'relatorios' %}active{% endif %}"><i data-lucide="pie-chart"></i> Relatórios</a></li>
                 <li><a href="{% url 'core:configuracoes' %}" class="{% if request.resolver_match.url_name == 'configuracoes' %}active{% endif %}"><i data-lucide="settings"></i> Configurações</a></li>

@@ -3,13 +3,13 @@ from django.contrib import messages
 from .models import (
     Competencia, Lancamento, Conta, Categoria, Parcelamento, 
     AgentePagador, RegraImportacao, OfxArquivo, OfxTransacao, 
-    ContaBancaria, ChavePix
+    ContaBancaria, ChavePix, ProdutoGarantia
 )
 from django.utils import timezone
 from datetime import date
 from django.db.models import Sum, Min
 from .services import importar_contas_fixas
-from .forms import ContaForm, LancamentoForm, PagamentoForm, ParcelamentoModelForm, AgentePagadorForm, RegraImportacaoForm
+from .forms import ContaForm, LancamentoForm, PagamentoForm, ParcelamentoModelForm, AgentePagadorForm, RegraImportacaoForm, ProdutoGarantiaForm
 from dateutil.relativedelta import relativedelta
 from django.http import HttpResponse
 from django.template.loader import get_template
@@ -360,7 +360,7 @@ def parcelamentos_list(request):
     parcelamentos = Parcelamento.objects.all().order_by('-status', 'data_inicio')
     
     if request.method == 'POST':
-        form = ParcelamentoModelForm(request.POST)
+        form = ParcelamentoModelForm(request.POST, request.FILES)
         if form.is_valid():
             form.save()
             return redirect('core:parcelamentos_list')
@@ -376,7 +376,7 @@ def parcelamentos_list(request):
 def parcelamento_edit(request, pk):
     parcelamento = get_object_or_404(Parcelamento, pk=pk)
     if request.method == 'POST':
-        form = ParcelamentoModelForm(request.POST, instance=parcelamento)
+        form = ParcelamentoModelForm(request.POST, request.FILES, instance=parcelamento)
         if form.is_valid():
             form.save()
             return redirect('core:parcelamentos_list')
@@ -392,27 +392,83 @@ def parcelamento_detalhe(request, pk):
     # Busca todos os lançamentos vinculados a este parcelamento
     lancamentos = Lancamento.objects.filter(parcelamento=parcelamento).order_by('parcela_atual')
     
+    # Lançamentos extras vinculados
+    lancamentos_extras = parcelamento.lancamentos_extras.all()
+    
     # Cálculos para o dashboard do parcelamento
-    pago = lancamentos.filter(status='pago').aggregate(Sum('valor_pago'))['valor_pago__sum'] or 0
+    pago_parcelas = lancamentos.filter(status='pago').aggregate(Sum('valor_pago'))['valor_pago__sum'] or 0
+    pago_extras = lancamentos_extras.aggregate(Sum('valor_pago'))['valor_pago__sum'] or 0
+    
+    # O total pago efetivo inclui Entrada, Parcelas Pagas, Parcela Final e Extras
+    total_pago = float(parcelamento.valor_entrada) + float(pago_parcelas) + float(parcelamento.valor_parcela_final) + float(pago_extras)
+    
     pendente = lancamentos.filter(status='pendente').aggregate(Sum('valor_previsto'))['valor_previsto__sum'] or 0
-    total_efetivo = pago + pendente
     
     desconto_total = lancamentos.aggregate(Sum('desconto'))['desconto__sum'] or 0
     juros_total = lancamentos.aggregate(Sum('juros'))['juros__sum'] or 0
     
+    # Para o formulário de associação de gastos
+    competencias = Competencia.objects.all().order_by('-ano', '-mes')
+    comp_id = request.GET.get('assoc_comp_id')
+    lancamentos_disponiveis = []
+    if comp_id:
+        # Lançamentos pagos daquela competência que NÃO sejam parcelas do próprio parcelamento
+        # e que NÃO estejam já vinculados como extras
+        lancamentos_disponiveis = Lancamento.objects.filter(
+            competencia_id=comp_id, 
+            status='pago'
+        ).exclude(
+            id__in=lancamentos.values_list('id', flat=True)
+        ).exclude(
+            id__in=lancamentos_extras.values_list('id', flat=True)
+        )
+
     context = {
         'parcelamento': parcelamento,
         'lancamentos': lancamentos,
+        'lancamentos_extras': lancamentos_extras,
+        'competencias': competencias,
+        'lancamentos_disponiveis': lancamentos_disponiveis,
+        'selected_comp_id': int(comp_id) if comp_id else None,
         'stats': {
-            'pago': pago,
+            'pago': total_pago,
             'pendente': pendente,
-            'total_efetivo': total_efetivo,
+            'total_efetivo': total_pago + float(pendente),
             'desconto_total': desconto_total,
             'juros_total': juros_total,
             'progresso_perc': (parcelamento.parcelas_pagas / parcelamento.total_parcelas * 100) if parcelamento.total_parcelas else 0
         }
     }
     return render(request, 'core/parcelamento_detalhe.html', context)
+
+def parcelamento_associar_gasto(request, pk):
+    parcelamento = get_object_or_404(Parcelamento, pk=pk)
+    if request.method == 'POST':
+        lancamento_id = request.POST.get('lancamento_id')
+        action = request.POST.get('action', 'add')
+        target = request.POST.get('target', 'extra') # 'extra', 'entrada', 'final'
+        
+        if lancamento_id:
+            lancamento = get_object_or_404(Lancamento, id=lancamento_id)
+            if action == 'add':
+                if target == 'entrada':
+                    parcelamento.lancamento_entrada = lancamento
+                elif target == 'final':
+                    parcelamento.lancamento_parcela_final = lancamento
+                else:
+                    parcelamento.lancamentos_extras.add(lancamento)
+                messages.success(request, f"Lançamento '{lancamento.conta.nome}' vinculado como {target}!")
+            else:
+                if target == 'entrada':
+                    parcelamento.lancamento_entrada = None
+                elif target == 'final':
+                    parcelamento.lancamento_parcela_final = None
+                else:
+                    parcelamento.lancamentos_extras.remove(lancamento)
+                messages.success(request, f"Vínculo de {target} removido.")
+            parcelamento.save()
+                
+    return redirect('core:parcelamento_detalhe', pk=pk)
 
 def configuracoes(request):
     categorias = Categoria.objects.all().order_by('nome')
@@ -1220,3 +1276,47 @@ def lancamento_ofx_detalhes(request, pk):
         ]
     }
     return JsonResponse(data)
+
+
+
+def produtos_list(request):
+    produtos = ProdutoGarantia.objects.all().order_by('-data_aquisicao')
+    if request.method == 'POST':
+        form = ProdutoGarantiaForm(request.POST, request.FILES)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Produto cadastrado com sucesso!")
+            return redirect('core:produtos_list')
+    else:
+        form = ProdutoGarantiaForm()
+    
+    context = {
+        'produtos': produtos,
+        'form': form,
+    }
+    return render(request, 'core/produtos.html', context)
+
+def produto_detalhe(request, pk):
+    produto = get_object_or_404(ProdutoGarantia, pk=pk)
+    context = {
+        'produto': produto,
+    }
+    return render(request, 'core/produto_detalhe.html', context)
+
+def produto_edit(request, pk):
+    produto = get_object_or_404(ProdutoGarantia, pk=pk)
+    if request.method == 'POST':
+        form = ProdutoGarantiaForm(request.POST, request.FILES, instance=produto)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Produto atualizado com sucesso!")
+            return redirect('core:produtos_list')
+    else:
+        form = ProdutoGarantiaForm(instance=produto)
+    return render(request, 'core/produto_form.html', {'form': form, 'produto': produto, 'edit': True})
+
+def produto_delete(request, pk):
+    produto = get_object_or_404(ProdutoGarantia, pk=pk)
+    produto.delete()
+    messages.success(request, "Produto removido.")
+    return redirect('core:produtos_list')

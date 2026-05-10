@@ -17,6 +17,7 @@ urlpatterns = [
     path('parcelamentos/<int:pk>/editar/', views.parcelamento_edit, name='parcelamento_edit'),
     path('parcelamentos/<int:pk>/deletar/', views.parcelamento_delete, name='parcelamento_delete'),
     path('parcelamentos/<int:pk>/detalhe/', views.parcelamento_detalhe, name='parcelamento_detalhe'),
+    path('parcelamentos/<int:pk>/associar-gasto/', views.parcelamento_associar_gasto, name='parcelamento_associar_gasto'),
     path('competencias/', views.competencias_list, name='competencias_list'),
     path('competencias/<int:pk>/reabrir/', views.competencia_reabrir, name='competencia_reabrir'),
     path('competencias/<int:pk>/exportar/', views.exportar_pdf, name='exportar_pdf'),
@@ -53,4 +54,10 @@ urlpatterns = [
     path('legacy/migrate/lancamento/<int:legacy_id>/', views.legacy_migrate_lancamento, name='legacy_migrate_lancamento'),
     path('legacy/migrate/competencia/<int:legacy_comp_id>/', views.legacy_migrate_competencia, name='legacy_migrate_competencia'),
     path('legacy/migrate/parcelamento/<int:legacy_id>/', views.legacy_migrate_parcelamento, name='legacy_migrate_parcelamento'),
+    
+    # Produtos, NF-e e Garantias
+    path('produtos/', views.produtos_list, name='produtos_list'),
+    path('produtos/<int:pk>/', views.produto_detalhe, name='produto_detalhe'),
+    path('produtos/<int:pk>/editar/', views.produto_edit, name='produto_edit'),
+    path('produtos/<int:pk>/deletar/', views.produto_delete, name='produto_delete'),
 ]

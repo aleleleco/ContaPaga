@@ -55,10 +55,15 @@
             </div>
             <h1 style="font-size: 2rem; font-weight: 800; color: var(--text-main);">{{ parcelamento.nome }}</h1>
         </div>
-        <div style="text-align: right;">
+        <div style="text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: 0.5rem;">
             <span class="badge badge-{% if parcelamento.status == 'ativo' %}warning{% else %}success{% endif %}" style="font-size: 0.875rem; padding: 0.5rem 1rem;">
                 {{ parcelamento.get_status_display }}
             </span>
+            {% if parcelamento.boleto %}
+            <a href="{{ parcelamento.boleto.url }}" target="_blank" class="btn" style="background: #f1f5f9; color: var(--text-main); padding: 0.4rem 0.8rem; font-size: 0.8125rem;">
+                <i data-lucide="file-text" style="width: 16px;"></i> Ver Boleto
+            </a>
+            {% endif %}
         </div>
     </div>
 </div>
@@ -116,18 +121,161 @@
             <p style="font-size: 0.875rem; color: var(--text-muted);">{{ parcelamento.parcelas_pagas }} de {{ parcelamento.total_parcelas }} parcelas pagas.</p>
         </div>
 
-        <div style="display: grid; grid-template-columns: 1fr; gap: 1rem;">
-            <div class="stat-card-mini">
-                <div class="label">Total Pago</div>
-                <div class="value" style="color: var(--success);">R$ {{ stats.pago|floatformat:2 }}</div>
+        {% if parcelamento.boleto or parcelamento.produtos.exists %}
+        <div class="card">
+            <h3 style="font-size: 0.875rem; font-weight: 700; text-transform: uppercase; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+                <i data-lucide="file-text"></i> Documentos e NF-e
+            </h3>
+            <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                {% if parcelamento.boleto %}
+                <a href="{{ parcelamento.boleto.url }}" target="_blank" style="display: flex; align-items: center; gap: 0.75rem; text-decoration: none; color: var(--text-main); background: var(--bg-main); padding: 0.75rem; border-radius: 12px; border: 1px solid var(--border);">
+                    <i data-lucide="paperclip" style="color: var(--primary); width: 16px;"></i>
+                    <span style="font-size: 0.875rem; font-weight: 600;">Boleto do Parcelamento</span>
+                </a>
+                {% endif %}
+
+                {% for prod in parcelamento.produtos.all %}
+                <div style="background: var(--bg-main); padding: 0.75rem; border-radius: 12px; border: 1px solid var(--border);">
+                    <div style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted); margin-bottom: 0.4rem;">{{ prod.nome }}</div>
+                    <div style="display: flex; gap: 0.5rem;">
+                        {% if prod.nota_fiscal %}
+                        <a href="{{ prod.nota_fiscal.url }}" target="_blank" title="NF-e/DANFE" style="color: var(--primary);"><i data-lucide="file-text" style="width: 16px;"></i></a>
+                        {% endif %}
+                        {% if prod.contrato_garantia %}
+                        <a href="{{ prod.contrato_garantia.url }}" target="_blank" title="Garantia" style="color: var(--success);"><i data-lucide="shield" style="width: 16px;"></i></a>
+                        {% endif %}
+                        <a href="{% url 'core:produto_detalhe' prod.pk %}" title="Ver Detalhes" style="color: var(--text-muted);"><i data-lucide="external-link" style="width: 16px;"></i></a>
+                    </div>
+                </div>
+                {% endfor %}
             </div>
+        </div>
+        {% endif %}
+
+        <div style="display: grid; grid-template-columns: 1fr; gap: 1rem;">
+            <div class="stat-card-mini" style="background: var(--bg-main); border-style: dashed; border-color: var(--primary);">
+                <div class="label">Total Pago Efetivo</div>
+                <div class="value" style="font-size: 1.75rem; color: var(--primary);">R$ {{ stats.pago|floatformat:2 }}</div>
+                <div style="font-size: 0.75rem; color: var(--text-muted);">Inclui Entrada, Parcelas Pagas, Parcela Final e Extras</div>
+            </div>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                <div class="stat-card-mini" style="position: relative;">
+                    <div class="label">Entrada</div>
+                    <div class="value">R$ {{ parcelamento.valor_entrada|floatformat:2 }}</div>
+                    
+                    {% if parcelamento.lancamento_entrada %}
+                        <div style="font-size: 0.7rem; color: var(--success); margin-top: 0.25rem; display: flex; justify-content: space-between; align-items: center;">
+                            <span><i data-lucide="link" style="width: 10px;"></i> {{ parcelamento.lancamento_entrada.conta.nome }}</span>
+                            <form action="{% url 'core:parcelamento_associar_gasto' parcelamento.id %}" method="POST" style="margin: 0;">
+                                {% csrf_token %}
+                                <input type="hidden" name="lancamento_id" value="{{ parcelamento.lancamento_entrada.id }}">
+                                <input type="hidden" name="action" value="remove">
+                                <input type="hidden" name="target" value="entrada">
+                                <button type="submit" style="background: none; border: none; padding: 0; color: var(--danger); cursor: pointer;"><i data-lucide="x" style="width: 12px;"></i></button>
+                            </form>
+                        </div>
+                    {% else %}
+                        <i data-lucide="link-2" style="position: absolute; top: 1rem; right: 1rem; width: 14px; color: var(--text-muted); cursor: pointer;" onclick="openAssocSection('entrada')"></i>
+                    {% endif %}
+                </div>
+                
+                <div class="stat-card-mini" style="position: relative;">
+                    <div class="label">Parcela Final</div>
+                    <div class="value">R$ {{ parcelamento.valor_parcela_final|floatformat:2 }}</div>
+                    
+                    {% if parcelamento.lancamento_parcela_final %}
+                        <div style="font-size: 0.7rem; color: var(--success); margin-top: 0.25rem; display: flex; justify-content: space-between; align-items: center;">
+                            <span><i data-lucide="link" style="width: 10px;"></i> {{ parcelamento.lancamento_parcela_final.conta.nome }}</span>
+                            <form action="{% url 'core:parcelamento_associar_gasto' parcelamento.id %}" method="POST" style="margin: 0;">
+                                {% csrf_token %}
+                                <input type="hidden" name="lancamento_id" value="{{ parcelamento.lancamento_parcela_final.id }}">
+                                <input type="hidden" name="action" value="remove">
+                                <input type="hidden" name="target" value="final">
+                                <button type="submit" style="background: none; border: none; padding: 0; color: var(--danger); cursor: pointer;"><i data-lucide="x" style="width: 12px;"></i></button>
+                            </form>
+                        </div>
+                    {% else %}
+                        <i data-lucide="link-2" style="position: absolute; top: 1rem; right: 1rem; width: 14px; color: var(--text-muted); cursor: pointer;" onclick="openAssocSection('final')"></i>
+                    {% endif %}
+                </div>
+            </div>
+
             <div class="stat-card-mini">
-                <div class="label">A Pagar</div>
+                <div class="label">A Pagar (Restante)</div>
                 <div class="value" style="color: var(--warning);">R$ {{ stats.pendente|floatformat:2 }}</div>
             </div>
+            
             <div class="stat-card-mini">
                 <div class="label">Economia (Descontos)</div>
                 <div class="value" style="color: #3b82f6;">R$ {{ stats.desconto_total|floatformat:2 }}</div>
+            </div>
+        </div>
+
+        <!-- OUTROS GASTOS / EXTRAS -->
+        <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                <h3 style="font-size: 1rem; font-weight: 700;">Gastos Extras</h3>
+                <i data-lucide="plus-circle" style="width: 18px; color: var(--primary); cursor: pointer;" onclick="openAssocSection('extra')"></i>
+            </div>
+            
+            {% if lancamentos_extras %}
+                <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                    {% for extra in lancamentos_extras %}
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 0.5rem; border-bottom: 1px solid var(--border);">
+                        <div>
+                            <div style="font-size: 0.875rem; font-weight: 600;">{{ extra.conta.nome }}</div>
+                            <div style="font-size: 0.75rem; color: var(--text-muted);">{{ extra.competencia }}</div>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            <div style="font-weight: 700;">R$ {{ extra.valor_pago|floatformat:2 }}</div>
+                            <form action="{% url 'core:parcelamento_associar_gasto' parcelamento.id %}" method="POST" style="margin: 0;">
+                                {% csrf_token %}
+                                <input type="hidden" name="lancamento_id" value="{{ extra.id }}">
+                                <input type="hidden" name="action" value="remove">
+                                <input type="hidden" name="target" value="extra">
+                                <button type="submit" style="background: none; border: none; padding: 0; color: var(--danger); cursor: pointer;">
+                                    <i data-lucide="x" style="width: 14px;"></i>
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <p style="font-size: 0.875rem; color: var(--text-muted); text-align: center; margin: 1rem 0;">Nenhum gasto extra associado.</p>
+            {% endif %}
+
+            <!-- Seção de Associação -->
+            <div id="assoc-section" style="margin-top: 1.5rem; padding-top: 1rem; border-top: 2px dashed var(--border); display: {% if selected_comp_id %}block{% else %}none{% endif %};">
+                <h4 style="font-size: 0.875rem; font-weight: 700; margin-bottom: 0.5rem;">Vincular Novo Gasto (<span id="target-label">{% if request.GET.target %}{{ request.GET.target }}{% else %}extra{% endif %}</span>)</h4>
+                <form action="" method="GET" id="assoc-filter-form" style="margin-bottom: 1rem;">
+                    <input type="hidden" name="target" id="id_target_filter" value="{{ request.GET.target|default:'extra' }}">
+                    <select name="assoc_comp_id" class="form-control" onchange="this.form.submit()">
+                        <option value="">Selecione a Competência...</option>
+                        {% for comp in competencias %}
+                            <option value="{{ comp.id }}" {% if selected_comp_id == comp.id %}selected{% endif %}>{{ comp }}</option>
+                        {% endfor %}
+                    </select>
+                </form>
+
+                {% if lancamentos_disponiveis %}
+                    <div style="max-height: 200px; overflow-y: auto;">
+                        {% for d in lancamentos_disponiveis %}
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.5rem; background: var(--bg-main); border-radius: 8px; margin-bottom: 0.5rem;">
+                            <span style="font-size: 0.875rem;">{{ d.conta.nome }} (R$ {{ d.valor_pago|floatformat:2 }})</span>
+                            <form action="{% url 'core:parcelamento_associar_gasto' parcelamento.id %}" method="POST" style="margin: 0;">
+                                {% csrf_token %}
+                                <input type="hidden" name="lancamento_id" value="{{ d.id }}">
+                                <input type="hidden" name="target" value="{{ request.GET.target|default:'extra' }}">
+                                <button type="submit" class="btn btn-primary" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;">Vincular</button>
+                            </form>
+                        </div>
+                        {% endfor %}
+                    </div>
+                {% elif selected_comp_id %}
+                    <p style="font-size: 0.75rem; color: var(--text-muted);">Nenhum gasto pago disponível nesta competência.</p>
+                {% endif %}
             </div>
         </div>
 
@@ -144,6 +292,19 @@
 {% block extra_js %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
+    function openAssocSection(target) {
+        const section = document.getElementById('assoc-section');
+        const label = document.getElementById('target-label');
+        const filterInput = document.getElementById('id_target_filter');
+        
+        section.style.display = 'block';
+        label.innerText = target;
+        filterInput.value = target;
+        
+        // Scroll para a seção
+        section.scrollIntoView({ behavior: 'smooth' });
+    }
+
     document.addEventListener('DOMContentLoaded', function() {
         const ctx = document.getElementById('mainProgessChart').getContext('2d');
         const pagas = {{ parcelamento.parcelas_pagas }};

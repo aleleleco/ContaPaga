@@ -1,0 +1,111 @@
+{% extends 'core/base.html' %}
+
+{% block title %}Detalhes: {{ produto.nome }} - ContaPaga{% endblock %}
+{% block header_title %}Detalhes do Produto{% endblock %}
+
+{% block content %}
+<div style="margin-bottom: 2rem;">
+    <a href="{% url 'core:produtos_list' %}" class="btn" style="background: transparent; padding: 0; color: var(--text-muted); margin-bottom: 1rem;">
+        <i data-lucide="arrow-left" style="width: 18px;"></i> Voltar para Produtos
+    </a>
+    <div style="display: flex; justify-content: space-between; align-items: flex-end;">
+        <div>
+            <h1 style="font-size: 2rem; font-weight: 800; color: var(--text-main);">{{ produto.nome }}</h1>
+            <div style="color: var(--text-muted);">Adquirido em {{ produto.data_aquisicao|date:"d/m/Y" }}</div>
+        </div>
+        <div style="display: flex; gap: 0.5rem;">
+            <a href="{% url 'core:produto_delete' produto.pk %}" class="btn" style="background: #fee2e2; color: #991b1b;" onclick="return confirm('Excluir este produto?')">
+                <i data-lucide="trash-2"></i> Excluir
+            </a>
+        </div>
+    </div>
+</div>
+
+<div style="display: grid; grid-template-columns: 1fr 350px; gap: 2rem;">
+    <div class="card">
+        <h2 style="font-size: 1.25rem; font-weight: 700; margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.5rem;">
+            <i data-lucide="info"></i> Informações Gerais
+        </h2>
+        
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem;">
+            <div>
+                <div class="form-group">
+                    <label>Valor de Aquisição</label>
+                    <div style="font-size: 1.5rem; font-weight: 800; color: var(--primary);">R$ {{ produto.valor|floatformat:2 }}</div>
+                </div>
+                <div class="form-group">
+                    <label>Período de Garantia</label>
+                    <div style="font-weight: 600;">{{ produto.tempo_garantia }} {{ produto.get_unidade_garantia_display }}</div>
+                </div>
+                <div class="form-group">
+                    <label>Vencimento da Garantia</label>
+                    <div style="font-weight: 700; color: {% if produto.garantia_ativa %}var(--success){% else %}var(--danger){% endif %};">
+                        {{ produto.data_fim_garantia|date:"d/m/Y" }}
+                        {% if not produto.garantia_ativa %}(Expirada){% endif %}
+                    </div>
+                </div>
+            </div>
+            
+            <div style="background: var(--bg-main); padding: 1.5rem; border-radius: 16px;">
+                <h3 style="font-size: 0.875rem; font-weight: 700; text-transform: uppercase; margin-bottom: 1rem;">Vínculos Financeiros</h3>
+                
+                {% if produto.lancamento %}
+                <div style="margin-bottom: 1rem;">
+                    <label style="font-size: 0.7rem; color: var(--text-muted); display: block;">Lançamento Associado</label>
+                    <a href="#" style="font-weight: 600; color: var(--primary); text-decoration: none;">
+                        <i data-lucide="check-circle" style="width: 14px; vertical-align: middle;"></i> 
+                        {{ produto.lancamento.conta.nome }} ({{ produto.lancamento.competencia }})
+                    </a>
+                </div>
+                {% endif %}
+
+                {% if produto.parcelamento %}
+                <div>
+                    <label style="font-size: 0.7rem; color: var(--text-muted); display: block;">Parcelamento Associado</label>
+                    <a href="{% url 'core:parcelamento_detalhe' produto.parcelamento.pk %}" style="font-weight: 600; color: var(--primary); text-decoration: none;">
+                        <i data-lucide="layers" style="width: 14px; vertical-align: middle;"></i> 
+                        {{ produto.parcelamento.nome }}
+                    </a>
+                </div>
+                {% endif %}
+
+                {% if not produto.lancamento and not produto.parcelamento %}
+                <p style="font-size: 0.875rem; color: var(--text-muted); font-style: italic;">Nenhum vínculo financeiro registrado.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+        <div class="card">
+            <h3 style="font-size: 1rem; font-weight: 700; margin-bottom: 1rem;">Documentos Anexos</h3>
+            
+            <div style="display: flex; flex-direction: column; gap: 1rem;">
+                {% if produto.nota_fiscal %}
+                <div style="display: flex; align-items: center; gap: 1rem; padding: 1rem; border: 1px solid var(--border); border-radius: 12px;">
+                    <i data-lucide="file-text" style="color: var(--primary);"></i>
+                    <div style="flex: 1;">
+                        <div style="font-size: 0.875rem; font-weight: 700;">Nota Fiscal / DANFE</div>
+                        <a href="{{ produto.nota_fiscal.url }}" target="_blank" style="font-size: 0.75rem; color: var(--primary);">Visualizar Arquivo</a>
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if produto.contrato_garantia %}
+                <div style="display: flex; align-items: center; gap: 1rem; padding: 1rem; border: 1px solid var(--border); border-radius: 12px;">
+                    <i data-lucide="shield-check" style="color: var(--success);"></i>
+                    <div style="flex: 1;">
+                        <div style="font-size: 0.875rem; font-weight: 700;">Contrato de Garantia</div>
+                        <a href="{{ produto.contrato_garantia.url }}" target="_blank" style="font-size: 0.75rem; color: var(--primary);">Visualizar Arquivo</a>
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if not produto.nota_fiscal and not produto.contrato_garantia %}
+                <p style="font-size: 0.875rem; color: var(--text-muted); text-align: center;">Nenhum documento anexado.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
