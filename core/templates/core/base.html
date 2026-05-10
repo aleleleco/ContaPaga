@@ -267,8 +267,9 @@
             <ul>
                 <li><a href="{% url 'core:dashboard' %}" class="{% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}"><i data-lucide="layout-dashboard"></i> Dashboard</a></li>
                 <li><a href="{% url 'core:competencias_list' %}" class="{% if request.resolver_match.url_name == 'competencias_list' %}active{% endif %}"><i data-lucide="calendar"></i> Competências</a></li>
-                <li><a href="{% url 'core:legacy_hub' %}" class="{% if request.resolver_match.url_name == 'legacy_hub' %}active{% endif %}"><i data-lucide="database"></i> Central de Legado</a></li>
+                <li><a href="{% url 'core:importar_dados' %}" class="{% if request.resolver_match.url_name == 'importar_dados' %}active{% endif %}"><i data-lucide="download-cloud"></i> Importar Dados</a></li>
                 <li><a href="{% url 'core:parcelamentos_list' %}" class="{% if request.resolver_match.url_name == 'parcelamentos_list' %}active{% endif %}"><i data-lucide="layers"></i> Contas Parceladas</a></li>
+                <li><a href="{% url 'core:produtos_list' %}" class="{% if request.resolver_match.url_name == 'produtos_list' or request.resolver_match.url_name == 'produto_detalhe' %}active{% endif %}"><i data-lucide="shield-check"></i> Produtos/NF-e/Garantias</a></li>
                 <li><a href="#"><i data-lucide="credit-card"></i> Contas Fixas</a></li>
                 <li><a href="{% url 'core:relatorios' %}" class="{% if request.resolver_match.url_name == 'relatorios' %}active{% endif %}"><i data-lucide="pie-chart"></i> Relatórios</a></li>
                 <li><a href="{% url 'core:configuracoes' %}" class="{% if request.resolver_match.url_name == 'configuracoes' %}active{% endif %}"><i data-lucide="settings"></i> Configurações</a></li>
@@ -277,6 +278,17 @@
     </aside>
 
     <main>
+        {% if messages %}
+        <div class="messages-container" style="margin-bottom: 1.5rem;">
+            {% for message in messages %}
+            <div class="card" style="margin-bottom: 0.5rem; border-left: 4px solid {% if message.tags == 'success' %}var(--success){% elif message.tags == 'error' %}var(--danger){% else %}var(--warning){% endif %}; padding: 1rem; display: flex; align-items: center; gap: 1rem;">
+                <i data-lucide="{% if message.tags == 'success' %}check-circle{% elif message.tags == 'error' %}alert-circle{% else %}alert-triangle{% endif %}" style="color: {% if message.tags == 'success' %}var(--success){% elif message.tags == 'error' %}var(--danger){% else %}var(--warning){% endif %};"></i>
+                <div style="font-weight: 500;">{{ message }}</div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
         <header>
             <h1>{% block header_title %}Dashboard{% endblock %}</h1>
             <div class="header-actions" style="display: flex; gap: 0.5rem;">

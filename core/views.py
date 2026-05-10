@@ -1,16 +1,22 @@
 from django.shortcuts import render, redirect, get_object_or_404, reverse
-from .models import Competencia, Lancamento, Conta, Categoria, Parcelamento, AgentePagador
+from django.contrib import messages
+from .models import (
+    Competencia, Lancamento, Conta, Categoria, Parcelamento, 
+    AgentePagador, RegraImportacao, OfxArquivo, OfxTransacao, 
+    ContaBancaria, ChavePix, ProdutoGarantia
+)
 from django.utils import timezone
 from datetime import date
 from django.db.models import Sum, Min
 from .services import importar_contas_fixas
-from .forms import ContaForm, LancamentoForm, PagamentoForm, ParcelamentoModelForm, AgentePagadorForm
+from .forms import ContaForm, LancamentoForm, PagamentoForm, ParcelamentoModelForm, AgentePagadorForm, RegraImportacaoForm, ProdutoGarantiaForm
 from dateutil.relativedelta import relativedelta
 from django.http import HttpResponse
 from django.template.loader import get_template
 from xhtml2pdf import pisa
 import io
 import sqlite3
+from ofxparse import OfxParser
 
 def dashboard(request):
     now = timezone.now()
@@ -37,13 +43,20 @@ def dashboard(request):
             competencia.save()
             return redirect(f"{reverse('core:dashboard')}?comp_id={competencia.id}")
     
-    lancamentos = Lancamento.objects.filter(competencia=competencia).order_by('vencimento')
+    lancamentos = Lancamento.objects.filter(competencia=competencia).select_related('conta__categoria').prefetch_related('ofx_transacoes').order_by('vencimento')
     
+    # Filtros por tipo de categoria
+    saidas = lancamentos.filter(conta__categoria__tipo='saida')
+    entradas = lancamentos.filter(conta__categoria__tipo='entrada')
+
     stats = {
-        'total_a_pagar': lancamentos.filter(status='pendente').aggregate(Sum('valor_previsto'))['valor_previsto__sum'] or 0,
-        'total_pago': lancamentos.filter(status='pago').aggregate(Sum('valor_pago'))['valor_pago__sum'] or 0,
-        'total_descontos': lancamentos.aggregate(Sum('desconto'))['desconto__sum'] or 0,
+        'total_a_pagar': saidas.filter(status='pendente').aggregate(Sum('valor_previsto'))['valor_previsto__sum'] or 0,
+        'total_pago': saidas.filter(status='pago').aggregate(Sum('valor_pago'))['valor_pago__sum'] or 0,
+        'total_descontos': saidas.filter(status='pago').aggregate(Sum('desconto'))['desconto__sum'] or 0,
+        'total_salarios': entradas.filter(conta__categoria__is_salary=True, status='pago').aggregate(Sum('valor_pago'))['valor_pago__sum'] or 0,
+        'outras_receitas': entradas.filter(conta__categoria__is_salary=False, status='pago').aggregate(Sum('valor_pago'))['valor_pago__sum'] or 0,
     }
+    stats['total_final'] = (stats['total_salarios'] + stats['outras_receitas']) - stats['total_pago']
     
     context = {
         'competencia': competencia,
@@ -134,9 +147,27 @@ def pagamento_registrar(request, pk):
                     p.status = 'finalizado'
                 p.save()
             
-            return redirect(f"{reverse('core:dashboard')}?comp_id={lancamento.competencia.id}")
-                
-    return redirect('core:dashboard')
+            return redirect(reverse('core:dashboard') + f'?comp_id={lancamento.competencia.id}')
+    return render(request, 'core/pagamento_form.html', {'form': form, 'lancamento': lancamento})
+
+def lancamento_edit(request, pk):
+    lancamento = get_object_or_404(Lancamento, pk=pk)
+    if request.method == 'POST':
+        form = LancamentoForm(request.POST, request.FILES, instance=lancamento)
+        if form.is_valid():
+            form.save()
+            return redirect(reverse('core:dashboard') + f'?comp_id={lancamento.competencia.id}')
+    else:
+        form = LancamentoForm(instance=lancamento)
+    return render(request, 'core/lancamento_form.html', {'form': form, 'edit': True})
+
+def lancamento_delete(request, pk):
+    lancamento = get_object_or_404(Lancamento, pk=pk)
+    comp_id = lancamento.competencia.id
+    if request.method == 'POST':
+        lancamento.delete()
+        return redirect(reverse('core:dashboard') + f'?comp_id={comp_id}')
+    return render(request, 'core/confirm_delete.html', {'object': lancamento, 'type': 'Lançamento'})
 
 def relatorios(request):
     now = timezone.now()
@@ -154,20 +185,47 @@ def relatorios(request):
     todas_competencias = Competencia.objects.all().order_by('-ano', '-mes')
     todas_contas = Conta.objects.values('nome').annotate(id=Min('id')).order_by('nome')
     
-    # 1. Gastos por Categoria (Gráfico Rosca)
+    # 1. Gastos por Categoria (Gráfico Rosca) - Apenas SAÍDAS PAGAS
     gastos_por_categoria = Lancamento.objects.filter(
-        competencia=comp_atual
-    ).values('conta__categoria__nome').annotate(total=Sum('valor_previsto'))
+        competencia=comp_atual,
+        conta__categoria__tipo='saida',
+        status='pago'
+    ).values('conta__categoria__nome').annotate(total=Sum('valor_pago'))
     
     labels_categorias = [item['conta__categoria__nome'] for item in gastos_por_categoria]
-    valores_categorias = [float(item['total']) for item in gastos_por_categoria]
+    valores_categorias = [float(item['total'] or 0) for item in gastos_por_categoria]
     
-    total_atual = Lancamento.objects.filter(competencia=comp_atual, status='pago').aggregate(Sum('valor_pago'))['valor_pago__sum'] or 0
-    total_anterior = 0
-    diff_valor = 0
-    if comp_anterior:
-        total_anterior = Lancamento.objects.filter(competencia=comp_anterior, status='pago').aggregate(Sum('valor_pago'))['valor_pago__sum'] or 0
-        diff_valor = abs(total_atual - total_anterior)
+    # 1.1 Gastos por Conta - Apenas SAÍDAS PAGAS
+    gastos_por_conta = Lancamento.objects.filter(
+        competencia=comp_atual,
+        conta__categoria__tipo='saida',
+        status='pago'
+    ).values('conta__nome', 'conta__categoria__nome').annotate(total=Sum('valor_pago')).order_by('-total')
+    
+    dados_contas = []
+    for item in gastos_por_conta:
+        dados_contas.append({
+            'nome': item['conta__nome'],
+            'categoria': item['conta__categoria__nome'],
+            'total': float(item['total'] or 0)
+        })
+    
+    import json
+    dados_contas_json = json.dumps(dados_contas)
+    
+    # TOTAIS SEPARADOS
+    def get_totals(comp):
+        if not comp: return 0, 0
+        pago = Lancamento.objects.filter(competencia=comp, status='pago', conta__categoria__tipo='saida').aggregate(Sum('valor_pago'))['valor_pago__sum'] or 0
+        recebido = Lancamento.objects.filter(competencia=comp, status='pago', conta__categoria__tipo='entrada').aggregate(Sum('valor_pago'))['valor_pago__sum'] or 0
+        return float(pago), float(recebido)
+
+    total_pago, total_recebido = get_totals(comp_atual)
+    total_anterior_pago, total_anterior_recebido = get_totals(comp_anterior)
+    
+    diff_pago = total_pago - total_anterior_pago
+    diff_recebido = total_recebido - total_anterior_recebido
+    saldo_final = total_recebido - total_pago
     
     # 2. Comparativo de Contas Fixas (Tabela + Gráfico Barras)
     # Agrupa por nome para evitar duplicatas na visualização
@@ -252,22 +310,35 @@ def relatorios(request):
     # 5. Gastos por Agente Pagador (Nova Funcionalidade)
     agentes_stats = []
     for agente in AgentePagador.objects.all():
-        gasto_agente = Lancamento.objects.filter(competencia=comp_atual, agente_pagador=agente).aggregate(Sum('valor_pago'))['valor_pago__sum'] or 0
-        saldo = agente.salario - gasto_agente
+        # Filtra apenas os pagos para ser consistente com a regra de caixa
+        qs_agente = Lancamento.objects.filter(competencia=comp_atual, agente_pagador=agente, status='pago')
+        
+        gasto_agente = qs_agente.filter(conta__categoria__tipo='saida').aggregate(Sum('valor_pago'))['valor_pago__sum'] or 0
+        recebido_agente = qs_agente.filter(conta__categoria__tipo='entrada').aggregate(Sum('valor_pago'))['valor_pago__sum'] or 0
+        
+        # Saldo = (Salário Base + Outras Receitas) - Gastos
+        saldo = (float(agente.salario) + float(recebido_agente)) - float(gasto_agente)
+        total_renda = float(agente.salario) + float(recebido_agente)
+        
         agentes_stats.append({
             'nome': agente.nome,
-            'salario': agente.salario,
-            'gasto': gasto_agente,
-            'saldo': saldo,
-            'perc': (float(gasto_agente) / float(agente.salario) * 100) if agente.salario > 0 else 0
+            'salario': float(agente.salario),
+            'recebido': float(recebido_agente),
+            'gasto': float(gasto_agente),
+            'saldo': float(saldo),
+            'perc': (float(gasto_agente) / total_renda * 100) if total_renda > 0 else 0
         })
 
     context = {
         'labels_categorias': labels_categorias,
         'valores_categorias': valores_categorias,
-        'total_atual': total_atual,
-        'total_anterior': total_anterior,
-        'diff_valor': diff_valor,
+        'dados_contas': dados_contas_json,
+        'total_pago': total_pago,
+        'total_recebido': total_recebido,
+        'saldo_final': saldo_final,
+        'diff_pago': diff_pago,
+        'diff_recebido': diff_recebido,
+        'comp_anterior': comp_anterior,
         'comparativo_fixas': comparativo_fixas,
         'labels_fixas': labels_fixas,
         'valores_fixas_atual': valores_fixas_atual,
@@ -289,7 +360,7 @@ def parcelamentos_list(request):
     parcelamentos = Parcelamento.objects.all().order_by('-status', 'data_inicio')
     
     if request.method == 'POST':
-        form = ParcelamentoModelForm(request.POST)
+        form = ParcelamentoModelForm(request.POST, request.FILES)
         if form.is_valid():
             form.save()
             return redirect('core:parcelamentos_list')
@@ -305,7 +376,7 @@ def parcelamentos_list(request):
 def parcelamento_edit(request, pk):
     parcelamento = get_object_or_404(Parcelamento, pk=pk)
     if request.method == 'POST':
-        form = ParcelamentoModelForm(request.POST, instance=parcelamento)
+        form = ParcelamentoModelForm(request.POST, request.FILES, instance=parcelamento)
         if form.is_valid():
             form.save()
             return redirect('core:parcelamentos_list')
@@ -321,27 +392,83 @@ def parcelamento_detalhe(request, pk):
     # Busca todos os lançamentos vinculados a este parcelamento
     lancamentos = Lancamento.objects.filter(parcelamento=parcelamento).order_by('parcela_atual')
     
+    # Lançamentos extras vinculados
+    lancamentos_extras = parcelamento.lancamentos_extras.all()
+    
     # Cálculos para o dashboard do parcelamento
-    pago = lancamentos.filter(status='pago').aggregate(Sum('valor_pago'))['valor_pago__sum'] or 0
+    pago_parcelas = lancamentos.filter(status='pago').aggregate(Sum('valor_pago'))['valor_pago__sum'] or 0
+    pago_extras = lancamentos_extras.aggregate(Sum('valor_pago'))['valor_pago__sum'] or 0
+    
+    # O total pago efetivo inclui Entrada, Parcelas Pagas, Parcela Final e Extras
+    total_pago = float(parcelamento.valor_entrada) + float(pago_parcelas) + float(parcelamento.valor_parcela_final) + float(pago_extras)
+    
     pendente = lancamentos.filter(status='pendente').aggregate(Sum('valor_previsto'))['valor_previsto__sum'] or 0
-    total_efetivo = pago + pendente
     
     desconto_total = lancamentos.aggregate(Sum('desconto'))['desconto__sum'] or 0
     juros_total = lancamentos.aggregate(Sum('juros'))['juros__sum'] or 0
     
+    # Para o formulário de associação de gastos
+    competencias = Competencia.objects.all().order_by('-ano', '-mes')
+    comp_id = request.GET.get('assoc_comp_id')
+    lancamentos_disponiveis = []
+    if comp_id:
+        # Lançamentos pagos daquela competência que NÃO sejam parcelas do próprio parcelamento
+        # e que NÃO estejam já vinculados como extras
+        lancamentos_disponiveis = Lancamento.objects.filter(
+            competencia_id=comp_id, 
+            status='pago'
+        ).exclude(
+            id__in=lancamentos.values_list('id', flat=True)
+        ).exclude(
+            id__in=lancamentos_extras.values_list('id', flat=True)
+        )
+
     context = {
         'parcelamento': parcelamento,
         'lancamentos': lancamentos,
+        'lancamentos_extras': lancamentos_extras,
+        'competencias': competencias,
+        'lancamentos_disponiveis': lancamentos_disponiveis,
+        'selected_comp_id': int(comp_id) if comp_id else None,
         'stats': {
-            'pago': pago,
+            'pago': total_pago,
             'pendente': pendente,
-            'total_efetivo': total_efetivo,
+            'total_efetivo': total_pago + float(pendente),
             'desconto_total': desconto_total,
             'juros_total': juros_total,
             'progresso_perc': (parcelamento.parcelas_pagas / parcelamento.total_parcelas * 100) if parcelamento.total_parcelas else 0
         }
     }
     return render(request, 'core/parcelamento_detalhe.html', context)
+
+def parcelamento_associar_gasto(request, pk):
+    parcelamento = get_object_or_404(Parcelamento, pk=pk)
+    if request.method == 'POST':
+        lancamento_id = request.POST.get('lancamento_id')
+        action = request.POST.get('action', 'add')
+        target = request.POST.get('target', 'extra') # 'extra', 'entrada', 'final'
+        
+        if lancamento_id:
+            lancamento = get_object_or_404(Lancamento, id=lancamento_id)
+            if action == 'add':
+                if target == 'entrada':
+                    parcelamento.lancamento_entrada = lancamento
+                elif target == 'final':
+                    parcelamento.lancamento_parcela_final = lancamento
+                else:
+                    parcelamento.lancamentos_extras.add(lancamento)
+                messages.success(request, f"Lançamento '{lancamento.conta.nome}' vinculado como {target}!")
+            else:
+                if target == 'entrada':
+                    parcelamento.lancamento_entrada = None
+                elif target == 'final':
+                    parcelamento.lancamento_parcela_final = None
+                else:
+                    parcelamento.lancamentos_extras.remove(lancamento)
+                messages.success(request, f"Vínculo de {target} removido.")
+            parcelamento.save()
+                
+    return redirect('core:parcelamento_detalhe', pk=pk)
 
 def configuracoes(request):
     categorias = Categoria.objects.all().order_by('nome')
@@ -351,6 +478,7 @@ def configuracoes(request):
     # Adiciona contagem de usos para segurança na exclusão
     for cat in categorias:
         cat.usos = Conta.objects.filter(categoria=cat).count() + Parcelamento.objects.filter(categoria=cat).count()
+    regras = RegraImportacao.objects.all().order_by('padrao')
     
     for conta in contas:
         conta.usos = Lancamento.objects.filter(conta=conta).count()
@@ -362,8 +490,10 @@ def configuracoes(request):
         'categorias': categorias,
         'contas': contas,
         'agentes': agentes,
+        'regras': regras,
         'form_conta': ContaForm(),
         'form_agente': AgentePagadorForm(),
+        'form_regra': RegraImportacaoForm(),
     }
     return render(request, 'core/configuracoes.html', context)
 
@@ -371,8 +501,19 @@ def agente_create(request):
     if request.method == 'POST':
         form = AgentePagadorForm(request.POST)
         if form.is_valid():
-            form.save()
+            agente = form.save()
+            return redirect('core:agente_detail', pk=agente.pk)
     return redirect('core:configuracoes')
+
+def agente_detail(request, pk):
+    agente = get_object_or_404(AgentePagador, pk=pk)
+    contas_bancarias = agente.contas_bancarias.all()
+    context = {
+        'agente': agente,
+        'contas_bancarias': contas_bancarias,
+        'form_agente': AgentePagadorForm(instance=agente),
+    }
+    return render(request, 'core/agente_detail.html', context)
 
 def agente_edit(request, pk):
     agente = get_object_or_404(AgentePagador, pk=pk)
@@ -380,7 +521,8 @@ def agente_edit(request, pk):
         form = AgentePagadorForm(request.POST, instance=agente)
         if form.is_valid():
             form.save()
-    return redirect('core:configuracoes')
+            return redirect('core:agente_detail', pk=agente.pk)
+    return redirect('core:agente_detail', pk=agente.pk)
 
 def agente_delete(request, pk):
     agente = get_object_or_404(AgentePagador, pk=pk)
@@ -388,11 +530,77 @@ def agente_delete(request, pk):
         agente.delete()
     return redirect('core:configuracoes')
 
+# Banking Views
+def conta_bancaria_create(request, agente_id):
+    agente = get_object_or_404(AgentePagador, id=agente_id)
+    if request.method == 'POST':
+        banco = request.POST.get('banco')
+        conta = request.POST.get('conta')
+        agencia = request.POST.get('agencia')
+        tipo = request.POST.get('tipo', 'corrente')
+        considerar = request.POST.get('considerar_como_salario') == 'on'
+        
+        ContaBancaria.objects.create(
+            agente=agente,
+            banco=banco,
+            conta=conta,
+            agencia=agencia,
+            tipo=tipo,
+            considerar_como_salario=considerar
+        )
+    return redirect('core:agente_detail', pk=agente.pk)
+
+def conta_bancaria_edit(request, pk):
+    conta = get_object_or_404(ContaBancaria, pk=pk)
+    if request.method == 'POST':
+        conta.banco = request.POST.get('banco')
+        conta.conta = request.POST.get('conta')
+        conta.agencia = request.POST.get('agencia')
+        conta.tipo = request.POST.get('tipo', 'corrente')
+        conta.considerar_como_salario = request.POST.get('considerar_como_salario') == 'on'
+        conta.save()
+    return redirect('core:agente_detail', pk=conta.agente.pk)
+
+def conta_bancaria_delete(request, pk):
+    conta = get_object_or_404(ContaBancaria, pk=pk)
+    agente_pk = conta.agente.pk
+    conta.delete()
+    return redirect('core:agente_detail', pk=agente_pk)
+
+def chave_pix_create(request, conta_id):
+    conta = get_object_or_404(ContaBancaria, id=conta_id)
+    if request.method == 'POST':
+        tipo = request.POST.get('tipo')
+        chave = request.POST.get('chave')
+        ChavePix.objects.create(conta_bancaria=conta, tipo=tipo, chave=chave)
+    return redirect('core:agente_detail', pk=conta.agente.pk)
+
+def chave_pix_delete(request, pk):
+    chave = get_object_or_404(ChavePix, pk=pk)
+    agente_pk = chave.conta_bancaria.agente.pk
+    chave.delete()
+    return redirect('core:agente_detail', pk=agente_pk)
+
 def categoria_create(request):
     if request.method == 'POST':
         nome = request.POST.get('nome')
+        tipo = request.POST.get('tipo', 'saida')
+        is_salary = request.POST.get('is_salary') == 'on'
         if nome:
-            Categoria.objects.get_or_create(nome=nome)
+            Categoria.objects.get_or_create(nome=nome, defaults={'tipo': tipo, 'is_salary': is_salary})
+    return redirect('core:configuracoes')
+
+def categoria_edit(request, pk):
+    categoria = get_object_or_404(Categoria, pk=pk)
+    if request.method == 'POST':
+        nome = request.POST.get('nome')
+        tipo = request.POST.get('tipo')
+        is_salary = request.POST.get('is_salary') == 'on'
+        if nome:
+            categoria.nome = nome
+            categoria.tipo = tipo
+            categoria.is_salary = is_salary
+            categoria.save()
     return redirect('core:configuracoes')
 
 def categoria_delete(request, pk):
@@ -400,6 +608,25 @@ def categoria_delete(request, pk):
     # Proteção: só deleta se não tiver nada vinculado
     if not Conta.objects.filter(categoria=categoria).exists() and not Parcelamento.objects.filter(categoria=categoria).exists():
         categoria.delete()
+    return redirect('core:configuracoes')
+def regra_create(request):
+    if request.method == 'POST':
+        form = RegraImportacaoForm(request.POST)
+        if form.is_valid():
+            form.save()
+    return redirect('core:configuracoes')
+
+def regra_edit(request, pk):
+    regra = get_object_or_404(RegraImportacao, pk=pk)
+    if request.method == 'POST':
+        form = RegraImportacaoForm(request.POST, instance=regra)
+        if form.is_valid():
+            form.save()
+    return redirect('core:configuracoes')
+
+def regra_delete(request, pk):
+    regra = get_object_or_404(RegraImportacao, pk=pk)
+    regra.delete()
     return redirect('core:configuracoes')
 
 def competencias_list(request):
@@ -451,80 +678,242 @@ def exportar_pdf(request, pk):
        return HttpResponse('Erro ao gerar PDF', status=500)
     return response
 
-def legacy_hub(request):
-    legado_path = r'E:\Gestor_Contas\db.sqlite3'
-    conn = sqlite3.connect(legado_path)
-    cursor = conn.cursor()
+def importar_dados(request):
+    ofx_results = []
+    agente_selecionado = None
     
-    # Busca IDs já migrados para marcar na interface
-    contas_migradas_ids = list(Conta.objects.filter(legacy_id__isnull=False).values_list('legacy_id', flat=True))
-    lancamentos_migrados_ids = list(Lancamento.objects.filter(legacy_id__isnull=False).values_list('legacy_id', flat=True))
-    parcelamentos_migrados_ids = list(Parcelamento.objects.filter(legacy_id__isnull=False).values_list('legacy_id', flat=True))
+    # 1. Processamento OFX (Se houver upload)
+    # 1. Processamento de OFX (Staging)
+    if request.method == 'POST' and request.FILES.getlist('ofx_files'):
+        agente_id = request.POST.get('agente_id')
+        conta_bancaria_id = request.POST.get('conta_bancaria_id')
+        
+        if agente_id:
+            agente_selecionado = get_object_or_404(AgentePagador, id=agente_id)
+            
+        conta_bancaria = None
+        if conta_bancaria_id:
+            conta_bancaria = get_object_or_404(ContaBancaria, id=conta_bancaria_id)
+            
+        files = request.FILES.getlist('ofx_files')
+        if agente_selecionado:
+            transacoes_criadas = 0
+            transacoes_puladas = 0
+            transacoes_transferencia = 0
+            for f in files:
+                # Salva o arquivo fisicamente
+                ofx_arq = OfxArquivo.objects.create(
+                    arquivo=f, 
+                    agente=agente_selecionado, 
+                    conta_bancaria=conta_bancaria,
+                    banco_nome='Detectando...'
+                )
+            
+                # Identificação do Banco
+                fname = f.name.lower()
+                bank_name = 'Banco'
+                if conta_bancaria:
+                    bank_name = conta_bancaria.banco
+                else:
+                    if 'bradesco' in fname: bank_name = 'Bradesco'
+                    elif 'nubank' in fname or 'nu bank' in fname: bank_name = 'Nubank'
+                    elif 'itau' in fname: bank_name = 'Itaú'
+                    elif 'santander' in fname: bank_name = 'Santander'
+                    elif 'inter' in fname: bank_name = 'Inter'
+                
+                ofx_arq.banco_nome = bank_name
+                ofx_arq.save()
 
-    # Busca contas que ainda não foram migradas
-    cursor.execute("SELECT id, nome, data_vencimento, mensal, observacoes FROM gestor_contas_conta")
-    contas_legado = []
-    for row in cursor.fetchall():
-        contas_legado.append({
+                try:
+                    f.seek(0)
+                    ofx = OfxParser.parse(f)
+                    statement = ofx.account.statement
+                    for transaction in statement.transactions:
+                        # 1. Prevenção de duplicatas por FITID
+                        if OfxTransacao.objects.filter(fitid=transaction.id).exists():
+                            transacoes_puladas += 1
+                            continue
+
+                        t_val = transaction.amount
+                        t_date = transaction.date.date()
+                        t_memo = transaction.memo
+                        
+                        # 2. Detecção de Transferência Interna (ENTRE CONTAS/BANCOS)
+                        # Busca espelho: mesmo valor (invertido) no mesmo dia ou próximo
+                        espelho = OfxTransacao.objects.filter(
+                            valor=-t_val,
+                            data__range=[t_date - timezone.timedelta(days=1), t_date + timezone.timedelta(days=1)]
+                        ).exclude(arquivo__conta_bancaria=conta_bancaria).first()
+                        
+                        status = 'lido'
+                        if espelho:
+                            status = 'transferencia'
+                            espelho.status = 'transferencia'
+                            espelho.save()
+                            transacoes_transferencia += 1
+
+                        # 3. Busca Sugestão por Regra
+                        sugestao_regra = None
+                        memo_upper = t_memo.upper()
+                        for regra in RegraImportacao.objects.all():
+                            if regra.padrao.upper() in memo_upper:
+                                sugestao_regra = regra
+                                break
+                        
+                        # 4. Busca Sugestão por Conciliação (Data/Valor)
+                        match = None
+                        abs_val = abs(float(t_val))
+                        comp = Competencia.objects.filter(mes=t_date.month, ano=t_date.year).first()
+                        if comp:
+                            posiveis = Lancamento.objects.filter(competencia=comp)
+                            for p in posiveis:
+                                p_val = float(p.valor_pago or p.valor_previsto)
+                                if abs(abs_val - p_val) < 1.0 and abs((t_date - p.vencimento).days) <= 3:
+                                    match = p
+                                    break
+
+                        # Prioridade: Regra > Match Histórico
+                        conta_final = None
+                        por_regra = False
+                        
+                        if sugestao_regra:
+                            conta_final = sugestao_regra.conta
+                            por_regra = True
+                        elif match:
+                            conta_final = match.conta
+
+                        OfxTransacao.objects.create(
+                            arquivo=ofx_arq,
+                            fitid=transaction.id,
+                            data=t_date,
+                            valor=t_val,
+                            descricao=t_memo,
+                            tipo=transaction.type,
+                            status=status,
+                            conta_sugerida=conta_final,
+                            vinculo_por_regra=por_regra
+                        )
+                        transacoes_criadas += 1
+                except Exception as e:
+                    messages.error(request, f"Erro ao processar arquivo {f.name}: {str(e)}")
+                    continue
+            
+            if transacoes_criadas > 0:
+                messages.success(request, f"Importação concluída! {transacoes_criadas} novas transações importadas.")
+            if transacoes_puladas > 0:
+                messages.warning(request, f"{transacoes_puladas} transações foram ignoradas por já terem sido importadas anteriormente.")
+            if transacoes_transferencia > 0:
+                messages.info(request, f"{transacoes_transferencia} transações foram identificadas como transferências entre suas contas e movidas para a aba de Ignorados.")
+                
+        return redirect(reverse('core:importar_dados') + '#ofx')
+
+    # Busca transações (Removido logicade ofx_results redundante)
+    legado_path = r'E:\Gestor_Contas\db.sqlite3'
+    try:
+        conn = sqlite3.connect(legado_path)
+        cursor = conn.cursor()
+        
+        # Busca IDs já migrados
+        contas_migradas_ids = list(Conta.objects.filter(legacy_id__isnull=False).values_list('legacy_id', flat=True))
+        lancamentos_migrados_ids = list(Lancamento.objects.filter(legacy_id__isnull=False).values_list('legacy_id', flat=True))
+        parcelamentos_migrados_ids = list(Parcelamento.objects.filter(legacy_id__isnull=False).values_list('legacy_id', flat=True))
+
+        # Contas
+        cursor.execute("SELECT id, nome, data_vencimento, mensal, observacoes FROM gestor_contas_conta")
+        contas_legado = [{
             'id': row[0], 'nome': row[1], 'dia': row[2], 'mensal': row[3], 'obs': row[4],
             'migrada': row[0] in contas_migradas_ids
-        })
-            
-    # Busca lançamentos agrupados por competência
-    cursor.execute("""
-        SELECT cp.id, cp.data_pagamento, cp.valor_pago, c.nome, comp.mes, comp.ano, cp.comprovante, comp.id as comp_id
-        FROM gestor_contas_contapaga cp
-        JOIN gestor_contas_conta c ON cp.conta_id = c.id
-        JOIN gestor_contas_competencia comp ON cp.competencia_id = comp.id
-        ORDER BY comp.ano DESC, comp.mes DESC
-    """)
-    
-    competencias_dict = {}
-    for row in cursor.fetchall():
-        key = f"{row[4]}/{row[5]}" # MM/YYYY
-        if key not in competencias_dict:
-            competencias_dict[key] = {
-                'id': row[7],
-                'mes': row[4],
-                'ano': row[5],
-                'label': key,
-                'lancamentos': []
-            }
-        competencias_dict[key]['lancamentos'].append({
-            'id': row[0], 'data': row[1], 'valor': row[2], 'conta': row[3], 
-            'mes': row[4], 'ano': row[5], 'comprovante': row[6],
-            'migrado': row[0] in lancamentos_migrados_ids
-        })
+        } for row in cursor.fetchall()]
 
-    # Busca parcelamentos legados
-    cursor.execute("""
-        SELECT id, nome, qtd_parcelas, valor_total 
-        FROM gestor_contas_conta 
-        WHERE parcelas = 1
-    """)
-    parcelamentos_legado = []
-    for row in cursor.fetchall():
-        # Busca quantas parcelas já foram pagas no legado
-        cursor.execute("SELECT COUNT(*) FROM gestor_contas_contapaga WHERE conta_id = ?", (row[0],))
-        pagos = cursor.fetchone()[0]
+        # Lançamentos agrupados
+        cursor.execute("""
+            SELECT cp.id, cp.data_pagamento, cp.valor_pago, c.nome, comp.mes, comp.ano, cp.comprovante, comp.id as comp_id
+            FROM gestor_contas_contapaga cp
+            JOIN gestor_contas_conta c ON cp.conta_id = c.id
+            JOIN gestor_contas_competencia comp ON cp.competencia_id = comp.id
+            ORDER BY comp.ano DESC, comp.mes DESC
+        """)
         
-        # Valor da parcela estimado
-        valor_parc = row[3] / row[2] if row[2] and row[3] else 0
-        
-        parcelamentos_legado.append({
-            'id': row[0], 'nome': row[1], 'total': row[2], 'pagas': pagos, 
-            'valor_total': row[3], 'valor_parcela': valor_parc,
-            'migrado': row[0] in parcelamentos_migrados_ids
-        })
+        competencias_dict = {}
+        for row in cursor.fetchall():
+            key = f"{row[4]}/{row[5]}"
+            if key not in competencias_dict:
+                competencias_dict[key] = {'id': row[7], 'mes': row[4], 'ano': row[5], 'label': key, 'lancamentos': []}
+            competencias_dict[key]['lancamentos'].append({
+                'id': row[0], 'data': row[1], 'valor': row[2], 'conta': row[3], 
+                'migrado': row[0] in lancamentos_migrados_ids
+            })
 
-    conn.close()
+        # Parcelamentos
+        cursor.execute("SELECT id, nome, qtd_parcelas, valor_total FROM gestor_contas_conta WHERE parcelas = 1")
+        parcelamentos_legado = []
+        for row in cursor.fetchall():
+            cursor.execute("SELECT COUNT(*) FROM gestor_contas_contapaga WHERE conta_id = ?", (row[0],))
+            pagos = cursor.fetchone()[0]
+            parcelamentos_legado.append({
+                'id': row[0], 'nome': row[1], 'total': row[2], 'pagas': pagos, 
+                'migrado': row[0] in parcelamentos_migrados_ids
+            })
+        
+        conn.close()
+    except Exception:
+        contas_legado = []
+        competencias_dict = {}
+        parcelamentos_legado = []
+
+    # 2. Busca de todos os registros persistidos para a visualização (Central de Conciliação)
+    tab = request.GET.get('tab', 'pendentes')
+    agente_id_filter = request.GET.get('agente_id')
+    conta_id_filter = request.GET.get('conta_id')
+    search_query = request.GET.get('q', '')
     
+    transacoes_qs = OfxTransacao.objects.all().select_related(
+        'arquivo__agente', 
+        'arquivo__conta_bancaria', 
+        'conta_sugerida', 
+        'lancamento_criado'
+    ).order_by('-data', '-id')
+    
+    # Filtros Globais
+    if agente_id_filter:
+        transacoes_qs = transacoes_qs.filter(arquivo__agente_id=agente_id_filter)
+    if conta_id_filter:
+        transacoes_qs = transacoes_qs.filter(arquivo__conta_bancaria_id=conta_id_filter)
+    if search_query:
+        from django.db.models import Q
+        transacoes_qs = transacoes_qs.filter(
+            Q(descricao__icontains=search_query) | 
+            Q(fitid__icontains=search_query)
+        )
+        
+    # Filtragem por Aba
+    if tab == 'pendentes':
+        transacoes_qs = transacoes_qs.filter(status='lido')
+    elif tab == 'validados':
+        transacoes_qs = transacoes_qs.filter(status='validado')
+    elif tab == 'processados':
+        transacoes_qs = transacoes_qs.filter(status='processado')
+    elif tab == 'ignorar':
+        transacoes_qs = transacoes_qs.filter(status__in=['ignorado', 'transferencia'])
+
     context = {
+        'transacoes': transacoes_qs,
+        'current_tab': tab,
+        'agente_id_filter': agente_id_filter,
+        'conta_id_filter': conta_id_filter,
+        'search_query': search_query,
+        'agentes': AgentePagador.objects.all().order_by('nome'),
+        'categorias': Categoria.objects.all().order_by('nome'),
+        'categorias_entrada': Categoria.objects.filter(tipo='entrada').order_by('nome'),
+        'categorias_saida': Categoria.objects.filter(tipo='saida').order_by('nome'),
+        'contas': Conta.objects.all().order_by('nome'),
+        'contas_bancarias': ContaBancaria.objects.all().select_related('agente').order_by('agente__nome', 'banco'),
         'contas_legado': contas_legado,
-        'competencias_legado': competencias_dict.values(),
         'parcelamentos_legado': parcelamentos_legado,
+        'competencias_legado': competencias_dict.values(),
+        'has_any_ofx': OfxTransacao.objects.exists(),
     }
-    return render(request, 'core/legacy_hub.html', context)
+    return render(request, 'core/importar_dados.html', context)
 
 def legacy_migrate_competencia(request, legacy_comp_id):
     legado_path = r'E:\Gestor_Contas\db.sqlite3'
@@ -542,7 +931,7 @@ def legacy_migrate_competencia(request, legacy_comp_id):
         # Reutiliza a lógica individual para garantir consistência
         legacy_migrate_lancamento(request, l_id)
         
-    return redirect('core:legacy_hub')
+    return redirect('core:importar_dados')
 
 def legacy_migrate_conta(request, legacy_id):
     legado_path = r'E:\Gestor_Contas\db.sqlite3'
@@ -565,7 +954,7 @@ def legacy_migrate_conta(request, legacy_id):
                 'observacoes': row[3]
             }
         )
-    return redirect('core:legacy_hub')
+    return redirect('core:importar_dados')
 
 def legacy_migrate_lancamento(request, legacy_id):
     legado_path = r'E:\Gestor_Contas\db.sqlite3'
@@ -604,7 +993,7 @@ def legacy_migrate_lancamento(request, legacy_id):
                 'comprovante': comprovante 
             }
         )
-    return redirect('core:legacy_hub')
+    return redirect('core:importar_dados')
 
 def legacy_migrate_parcelamento(request, legacy_id):
     legado_path = r'E:\Gestor_Contas\db.sqlite3'
@@ -648,4 +1037,286 @@ def legacy_migrate_parcelamento(request, legacy_id):
         # Importante: O usuário agora pode migrar os lançamentos individuais deste parcelamento
         # na seção de lançamentos do Hub para preencher o histórico.
         
-    return redirect('core:legacy_hub')
+    return redirect('core:importar_dados')
+
+def ofx_reaplicar_regras(request):
+    # Re-aplica regras e sugestões em registros pendentes ou validados sem conta
+    from django.db.models import Q
+    transacoes = OfxTransacao.objects.filter(
+        Q(status='lido') | (Q(status='validado') & Q(conta_sugerida__isnull=True))
+    )
+    regras = list(RegraImportacao.objects.all())
+    
+    atualizados = 0
+    for t in transacoes:
+        changed = False
+        memo_upper = t.descricao.upper()
+        
+        # 1. Regras de Importação (Vínculo Direto com Conta)
+        for regra in regras:
+            if regra.padrao.upper() in memo_upper:
+                if t.conta_sugerida != regra.conta:
+                    t.conta_sugerida = regra.conta
+                    t.vinculo_por_regra = True
+                    changed = True
+                break
+        
+        # 2. Busca Sugestão por Conciliação (Conta)
+        # Se ainda não tem conta vinculada, tenta buscar por proximidade de valor/data
+        if not t.conta_sugerida:
+            abs_val = abs(float(t.valor))
+            comp = Competencia.objects.filter(mes=t.data.month, ano=t.data.year).first()
+            if comp:
+                posiveis = Lancamento.objects.filter(competencia=comp)
+                for p in posiveis:
+                    p_val = float(p.valor_pago or p.valor_previsto)
+                    if abs(abs_val - p_val) < 1.0 and abs((t.data - p.vencimento).days) <= 3:
+                        t.conta_sugerida = p.conta
+                        changed = True
+                        break
+        
+        if changed:
+            t.save()
+            atualizados += 1
+            
+    messages.success(request, f"Sugestões atualizadas! {atualizados} transações receberam novos vínculos ou categorias.")
+    return redirect(reverse('core:importar_dados') + '#ofx')
+
+def ofx_validar(request):
+    # Marca todos os 'lido' como 'validado'
+    OfxTransacao.objects.filter(status='lido').update(status='validado')
+    messages.success(request, "Transações validadas com sucesso!")
+    return redirect(reverse('core:importar_dados') + '?tab=validados#ofx')
+
+def ofx_vincular_conta(request, pk):
+    tab = request.GET.get('tab', 'pendentes')
+    if request.method == 'POST':
+        transacao = get_object_or_404(OfxTransacao, pk=pk)
+        conta_id = request.POST.get('conta_id')
+        if conta_id:
+            transacao.conta_sugerida = get_object_or_404(Conta, id=conta_id)
+            transacao.status = 'validado'
+            transacao.save()
+            messages.success(request, f"Transação vinculada à conta {transacao.conta_sugerida.nome}")
+    return redirect(reverse('core:importar_dados') + '?tab=validados#ofx')
+
+def processar_vinculados(request):
+    # Processa apenas transações validadas que tenham conta_sugerida
+    transacoes = OfxTransacao.objects.filter(status='validado', conta_sugerida__isnull=False)
+    
+    processados_count = 0
+    for t in transacoes:
+        # Busca a competência aberta para o mês da transação
+        comp = Competencia.objects.filter(mes=t.data.month, ano=t.data.year, status='aberto').first()
+        if not comp:
+            continue
+            
+        # REGRA: Verificar se já existe um lançamento para esta conta nesta competência
+        lanc = Lancamento.objects.filter(conta=t.conta_sugerida, competencia=comp).first()
+        
+        if lanc:
+            # ACUMULA lançamento existente com dados do banco usando F() para segurança atômica
+            from django.db.models import F
+            
+            # Se o valor estava nulo, tratamos como 0 antes de somar
+            if lanc.valor_pago is None: lanc.valor_pago = 0
+            if lanc.valor_previsto is None: lanc.valor_previsto = 0
+            
+            # Lógica sensível ao tipo de conta:
+            # Se Saída: t.valor costuma ser negativo (ex: -90), queremos somar +90 ao gasto.
+            # Se Entrada: t.valor costuma ser positivo (ex: +100), queremos somar +100 à receita.
+            diff = -t.valor if t.conta_sugerida.categoria.tipo == 'saida' else t.valor
+            
+            lanc.valor_pago = F('valor_pago') + diff
+            
+            # Para o previsto: se era uma conta com valor 0 ou importação direta.
+            lanc.valor_previsto = F('valor_previsto') + diff
+            
+            lanc.data_pagamento = t.data
+            lanc.status = 'pago'
+            lanc.transacao_id = None 
+            lanc.save()
+            # Forçamos o reload do objeto para a próxima iteração se houver mais transações para a mesma conta
+            lanc.refresh_from_db()
+        else:
+            # CRIA novo lançamento se não existir
+            diff = -t.valor if t.conta_sugerida.categoria.tipo == 'saida' else t.valor
+            lanc = Lancamento.objects.create(
+                conta=t.conta_sugerida,
+                competencia=comp,
+                valor_previsto=diff,
+                valor_pago=diff,
+                vencimento=t.data,
+                data_pagamento=t.data,
+                descricao=f"Importado OFX: {t.descricao}",
+                status='pago',
+                agente_pagador=t.arquivo.agente
+            )
+
+        # Marca a transação OFX como processada e vincula ao lançamento
+        t.status = 'processado'
+        t.lancamento_criado = lanc
+        t.save()
+        processados_count += 1
+        
+    if processados_count > 0:
+        messages.success(request, f"{processados_count} lançamentos foram criados com sucesso!")
+    
+    return redirect(reverse('core:importar_dados') + '?tab=processados#ofx')
+
+def ofx_limpar_staging(request):
+    tab = request.GET.get('tab', 'pendentes')
+    # Mapeia tab para status
+    status_map = {
+        'pendentes': 'lido',
+        'validados': 'validado',
+        'ignorar': 'ignorado'
+    }
+    
+    target_status = status_map.get(tab)
+    if target_status:
+        OfxTransacao.objects.filter(status=target_status).delete()
+    else:
+        # Se não tiver tab ou for desconhecida, limpa apenas os não processados
+        OfxTransacao.objects.filter(status__in=['lido', 'validado']).delete()
+        
+    return redirect(reverse('core:importar_dados') + f'?tab={tab}#ofx')
+
+    return HttpResponse(status=204)
+
+def ofx_update_categoria(request, pk):
+    if request.method == 'POST':
+        transacao = get_object_or_404(OfxTransacao, pk=pk)
+        categoria_id = request.POST.get('categoria_id')
+        if categoria_id:
+            categoria = get_object_or_404(Categoria, id=categoria_id)
+            transacao.categoria_manual = categoria
+            transacao.save()
+    return HttpResponse(status=204)
+
+def ofx_desvincular(request, pk):
+    tab = request.GET.get('tab', 'pendentes')
+    transacao = get_object_or_404(OfxTransacao, pk=pk)
+    
+    # Se já estava processada, precisamos subtrair o valor do lançamento original
+    if transacao.status == 'processado' and transacao.lancamento_criado:
+        lanc = transacao.lancamento_criado
+        diff = -transacao.valor if transacao.conta_sugerida.categoria.tipo == 'saida' else transacao.valor
+        
+        from django.db.models import F
+        lanc.valor_pago = F('valor_pago') - diff
+        lanc.valor_previsto = F('valor_previsto') - diff
+        lanc.save()
+        
+        # Se o lançamento ficar com valor 0, talvez queira deletar ou manter pendente
+        # Por segurança, mantemos mas limpamos o status se chegar a zero
+        lanc.refresh_from_db()
+        if lanc.valor_pago <= 0:
+            lanc.status = 'pendente'
+            lanc.save()
+            
+    transacao.conta_sugerida = None
+    transacao.lancamento_criado = None
+    transacao.status = 'lido'
+    transacao.save()
+    return redirect(reverse('core:importar_dados') + f'?tab={tab}#ofx')
+
+def ofx_ignorar_transacao(request, pk):
+    transacao = get_object_or_404(OfxTransacao, pk=pk)
+    tab = request.GET.get('tab', 'pendentes')
+    transacao.status = 'ignorado'
+    transacao.save()
+    messages.warning(request, f"Transação '{transacao.descricao}' ignorada.")
+    return redirect(reverse('core:importar_dados') + f'?tab={tab}#ofx')
+
+def ofx_bulk_action(request):
+    tab = request.POST.get('current_tab', 'pendentes')
+    if request.method == 'POST':
+        ids = request.POST.getlist('transacao_ids')
+        action_type = request.POST.get('action_type') # 'categoria' ou 'conta'
+        target_id = request.POST.get('target_id')
+        
+        if not ids or not target_id:
+            return redirect(reverse('core:importar_dados') + f'?tab={tab}#ofx')
+            
+        transacoes = OfxTransacao.objects.filter(pk__in=ids)
+        
+        if action_type == 'categoria':
+            categoria = get_object_or_404(Categoria, id=target_id)
+            transacoes.update(categoria_manual=categoria)
+        elif action_type == 'conta':
+            conta = get_object_or_404(Conta, id=target_id)
+            transacoes.update(conta_sugerida=conta, status='validado')
+        elif action_type == 'validar':
+            # Valida os selecionados (removemos o filtro de conta_sugerida para não confundir o usuário)
+            transacoes.update(status='validado')
+            tab = 'validados' # Força ida para a aba de validados
+            messages.success(request, f"{transacoes.count()} transações validadas.")
+        elif action_type == 'ignorar':
+            transacoes.update(status='ignorado')
+            messages.warning(request, f"{transacoes.count()} transações ignoradas.")
+            
+    return redirect(reverse('core:importar_dados') + f'?tab={tab}#ofx')
+
+from django.http import JsonResponse
+def lancamento_ofx_detalhes(request, pk):
+    lancamento = get_object_or_404(Lancamento, pk=pk)
+    transacoes = lancamento.ofx_transacoes.all()
+    
+    data = {
+        'lancamento': lancamento.conta.nome,
+        'total': float(lancamento.valor_pago or 0),
+        'transacoes': [
+            {
+                'data': t.data.strftime('%d/%m/%Y'),
+                'descricao': t.descricao,
+                'valor': float(t.valor),
+                'banco': t.arquivo.banco_nome
+            } for t in transacoes
+        ]
+    }
+    return JsonResponse(data)
+
+
+
+def produtos_list(request):
+    produtos = ProdutoGarantia.objects.all().order_by('-data_aquisicao')
+    if request.method == 'POST':
+        form = ProdutoGarantiaForm(request.POST, request.FILES)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Produto cadastrado com sucesso!")
+            return redirect('core:produtos_list')
+    else:
+        form = ProdutoGarantiaForm()
+    
+    context = {
+        'produtos': produtos,
+        'form': form,
+    }
+    return render(request, 'core/produtos.html', context)
+
+def produto_detalhe(request, pk):
+    produto = get_object_or_404(ProdutoGarantia, pk=pk)
+    context = {
+        'produto': produto,
+    }
+    return render(request, 'core/produto_detalhe.html', context)
+
+def produto_edit(request, pk):
+    produto = get_object_or_404(ProdutoGarantia, pk=pk)
+    if request.method == 'POST':
+        form = ProdutoGarantiaForm(request.POST, request.FILES, instance=produto)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Produto atualizado com sucesso!")
+            return redirect('core:produtos_list')
+    else:
+        form = ProdutoGarantiaForm(instance=produto)
+    return render(request, 'core/produto_form.html', {'form': form, 'produto': produto, 'edit': True})
+
+def produto_delete(request, pk):
+    produto = get_object_or_404(ProdutoGarantia, pk=pk)
+    produto.delete()
+    messages.success(request, "Produto removido.")
+    return redirect('core:produtos_list')

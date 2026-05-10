@@ -1,0 +1,1158 @@
+Total Pages: 703
+
+--- TABLE OF CONTENTS / FIRST 30 PAGES ---
+--- PAGE 1 ---
+   
+© 2020 Intuit Inc., Envestnet® | Yodlee®, Enterprise Engineering Inc., Finicity, 
+Innovision Corporation, JPMorgan Chase & Co., Plaid, SVB Financial Group, 
+Wells Fargo Bank, and Xero Limited.
+All rights reserved.
+OFX Banking
+Specification
+Version 2.3
+October 2020
+
+--- PAGE 2 ---
+   
+ii  
+Legal Notice
+FDX is a standards body and adopts this OFX Banking Specification for general use among industry 
+stakeholders. Many of the terms, however, are subject to additional guidance under prevailing laws, 
+industry norms, and/or governmental regulations. While referencing certain laws that may be applicable, 
+readers, users, members, or any other parties should seek legal advice of counsel relating to their particular 
+practices and applicable laws in the jurisdictions where they do business. See FDX’s complete Legal 
+Disclaimer located at http://www.financialdataexchange.org for other applicable disclaimers.
+Open Financial Exchange Specification Legend
+Open Financial Exchange Specification ©2020 by: Intuit Inc., Enterprise Engineering Inc., Envestnet® | 
+Yodlee®, Finicity, Innovision Corporation, JPMorgan Chase & Co., Plaid, SVB Financial Group, Wells 
+Fargo Bank, and Xero Limited (“Publishers”). All rights reserved.
+A royalty-free, worldwide, and perpetual license is hereby granted to any party to use the Open Financial 
+Exchange Specification to make, use, and sell products and services that conform to this Specification.
+THIS OPEN FINANCIAL EXCHANGE SPECIFICATION IS MADE A V AILABLE “AS IS” WITHOUT 
+WARRANTY OF ANY KIND. TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, 
+PUBLISHERS FURTHER DISCLAIM ALL WARRANTIES, INCLUDING WITHOUT LIMITATION 
+ANY IMPLIED WARRANTIES OF MERCHANTABILITY , FITNESS FOR A PARTICULAR 
+PURPOSE AND NONINFRINGEMENT, ALL OF WHICH ARE HEREBY DISCLAIMED. THE 
+ENTIRE RISK ARISING OUT OF THE USE OF THIS SPECIFICATION REMAINS WITH 
+RECIPIENT. TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, IN NO EVENT 
+SHALL THE PUBLISHERS OF THIS SPECIFICA TION BE LIABLE FOR ANY CONSEQUENTIAL, 
+INCIDENTAL, DIRECT, INDIRECT, SPECIAL, PUNITIVE, OR OTHER DAMAGES WHATSOEVER 
+(INCLUDING, WITHOUT LIMITA TION, DAMAGES FOR LOSS OF BUSINESS PROFITS, 
+BUSINESS INTERRUPTION, LOSS OF BUSINESS INFORMATION, OR OTHER PECUNIARY 
+LOSS) ARISING OUT OF ANY USE TO WHICH THIS SPECIFICATION IS PUT, EVEN IF THE 
+PUBLISHERS HEREOF HA VE BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.
+Revision History
+Refer to Appendix C “Change History”  for a complete document revision history.
+
+--- PAGE 3 ---
+   
+ 
+OFX 2.3 Specification iii10/16/2020
+TABLE OF CONTENTS
+Chapter 1    Overview . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 17
+1.1  Introduction . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 17
+1.1.1  Design Principles  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 18
+1.2  Open Financial Exchange at a Glance . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 20
+1.2.1  Data Transport . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 20
+1.2.2  Request and Response Model . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 22
+1.2.3  HTTP Form Request and Response Model . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 24
+1.3  Definitions . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 25
+1.3.1  User . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 25
+1.3.2  Financial Institution  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 25
+1.3.3  Service Provider  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 25
+1.3.4  Client . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 25
+1.3.5  Server  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 25
+1.3.6  Service . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 25
+1.3.7  Tag . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 26
+1.3.8  Element . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 26
+1.3.9  Aggregate . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 26
+1.3.10  Request . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 27
+1.3.11  Response . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 27
+1.3.12  Message  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 27
+1.3.13  Transaction . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 27
+1.3.14  Synchronization . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 27
+1.3.15  Message Set  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 28
+1.4  OFX Versions . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 28
+1.5  Conventions . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 30
+Chapter 2   Structure  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 33
+2.1  HTTP Headers . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 34
+2.2  Open Financial Exchange File Format . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 34
+2.2.1  OFXHEADER  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 36
+2.2.2  VERSION  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 36
+2.2.3  SECURITY  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 36
+2.2.4  OLDFILEUID and NEWFILEUID  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 36
+2.3  XML Details . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 37
+2.3.1  Compliance  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 37
+
+--- PAGE 4 ---
+   
+iv OFX 2.3 Specification10/16/2020
+2.4  Open Financial Exchange XML Structure . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 37
+2.4.1  Overview  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 37
+2.4.2  Case Sensitivity  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 37
+2.4.3  Top Level  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 38
+2.4.4  Messages . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 38
+2.4.5  Message Sets and Version Control . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 40
+2.4.6  Transactions . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 43
+2.4.7  Synchronization Wrapper  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 46
+2.4.8  Message Set Wrapper . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 46
+2.5  The Signon Message Set . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 46
+2.5.1  Signon <SONRQ> and <SONRS>  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 46
+2.5.2  USERPASS Change <PINCHRQ> <PINCHRS>  . . . . . . . . . . . . . . . . . . . . . . . . . . 57
+2.5.3  <CHALLENGERQ> <CHALLENGERS> . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 59
+2.5.4  <MFACHALLENGERQ> <MFACHALLENGERS> . . . . . . . . . . . . . . . . . . . . . . . 60
+2.5.5  Signon Message Set Profile Information  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 64
+2.5.6  Examples . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 65
+2.6  External Data Support  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 72
+2.7  Extensions to Open Financial Exchange  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 73
+2.7.1  Private Tag Extension . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 73
+2.7.2  <OFXEXTENSION> Aggregate . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 74
+2.7.3  <OFXEXTENSION> Example  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 75
+2.8  Backward Compatibility with Pre-OFX 2.2 Systems . . . . . . . . . . . . . . . . . . . . . . . . . . . 75
+2.8.1  End Tag Usage . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 75
+2.8.2  XML Compliant Header . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 75
+2.8.3  International Support . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 76
+2.8.4  Message Set Versioning  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 76
+Chapter 3   Common Aggregates, Elements, and Data Types . . . . . . . . . . . . .75
+3.1  Common Aggregates  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 75
+3.1.1  Identification of Financial Institutions and Accounts  . . . . . . . . . . . . . . . . . . . . . 75
+3.1.2  Punctuation in Certain User-Supplied Values  . . . . . . . . . . . . . . . . . . . . . . . . . . . 75
+3.1.3  Echoing in Responses . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 77
+3.1.4  Balance Records <BAL>  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 77
+3.1.5  Error Reporting <STATUS> . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 79
+3.1.6  Common Aggregates related to Images  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 80
+3.2  Common Elements . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 83
+3.2.1  Client-Assigned Transaction UID <TRNUID>  . . . . . . . . . . . . . . . . . . . . . . . . . . . 83
+3.2.2  Server-Assigned ID <SRVRTID> . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 83
+3.2.3  Financial Institution Transaction ID <FITID> . . . . . . . . . . . . . . . . . . . . . . . . . . . . 84
+
+--- PAGE 5 ---
+   
+ 
+OFX 2.3 Specification v10/16/2020
+3.2.4  Token <TOKEN> . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 86
+3.2.5  Transaction Amount <TRNAMT>  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 86
+3.2.6  Memo <MEMO>  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 86
+3.2.7  Date Start and Date End <DTSTART> <DTEND>  . . . . . . . . . . . . . . . . . . . . . . . . 87
+3.2.8  Common Data Types  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 89
+3.2.9  Amounts, Prices, and Quantities  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 92
+3.2.10  Language  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 93
+3.2.11  Other Basic Data Types  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 93
+Chapter 4   OFX Security . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 93
+4.1  Security Concepts in OFX  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 93
+4.1.1  Architecture . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 93
+4.1.2  Security Goals  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 94
+4.1.3  Security Standards  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 94
+4.1.4  FI Responsibilities . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 95
+4.1.5  Security Levels: Channel vs. Application  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 96
+4.2  Security Implementation in OFX  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 97
+4.2.1  Channel-Level Security  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 97
+4.2.2  Application-Level Security  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 98
+Chapter 5   International Support  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 105
+5.1  Language and Encoding  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 105
+5.2  Currency <CURDEF> <CURRENCY> <ORIGCURRENCY>  . . . . . . . . . . . . . . . . . . . 105
+5.3  Country-Specific Element Values . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 107
+Chapter 6   Data Synchronization . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 109
+6.1  Overview . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 109
+6.2  Background . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 109
+6.3  Data Synchronization Approach  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 110
+6.4  Data Synchronization Specifics  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 111
+6.4.1  Tokens . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 111
+6.4.2  The Synchronization Process . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 112
+6.4.3  Synchronizable Objects  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 114
+6.4.4  Token and Full Synchronization Summary  . . . . . . . . . . . . . . . . . . . . . . . . . . . . 114
+6.5  Conflict Detection and Resolution . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 116
+6.6  Synchronization Options . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 116
+6.6.1  Synchronization Errors  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 118
+
+--- PAGE 6 ---
+   
+vi OFX 2.3 Specification10/16/2020
+6.7  Typical Server Architecture for Synchronization . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 118
+6.8  Typical Client Processing of Synchronization Results  . . . . . . . . . . . . . . . . . . . . . . . . 120
+6.9  Simultaneous Connections  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 121
+6.10  Synchronization Alternatives  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 121
+6.10.1  File-Based Error Recovery  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 122
+6.10.2  Lite Synchronization . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 124
+6.10.3   Relating Synchronization and Error Recovery  . . . . . . . . . . . . . . . . . . . . . . . . 124
+6.11  Examples  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 126
+Chapter 7   FI Profile . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .129
+7.1  Overview  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 129
+7.1.1  Message Sets  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 129
+7.1.2  Version Control . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 130
+7.1.3  Batching and Routing . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 131
+7.1.4  Client Signon for Profile Requests  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 131
+7.1.5  Profile Request <PROFRQ>  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 132
+7.2  Profile Response <PROFRS>  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 133
+7.2.1  Message Set  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 134
+7.2.2  Signon Realms . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 136
+7.2.3  Status Codes . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 138
+7.3  Profile Message Set Profile Information  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 138
+Chapter 8   Activation & Account Information . . . . . . . . . . . . . . . . . . . . . . . . .139
+8.1  Overview  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 139
+8.2  Approaches to User Sign-Up with OFX  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 139
+8.3  Users and Accounts  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 140
+8.4  Enrollment and Password Acquisition  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 140
+8.4.1  User IDs  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 141
+8.4.2  Enrollment Request <ENROLLRQ> . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 141
+8.4.3  Enrollment Response <ENROLLRS>  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 142
+8.4.4  Enrollment Status Codes  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 143
+8.4.5  Examples . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 144
+8.5  Account Information  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 145
+8.5.1  Account Obfuscation  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 146
+8.5.2  Request <ACCTINFORQ> . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 147
+8.5.3  Response <ACCTINFORS>  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 147
+8.5.4  Account Information Aggregate <ACCTINFO> . . . . . . . . . . . . . . . . . . . . . . . . . 148
+
+--- PAGE 7 ---
+   
+ 
+OFX 2.3 Specification vii10/16/2020
+8.5.5  Status Codes . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 152
+8.5.6  Examples  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 153
+8.6  Service Activation . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 158
+8.6.1  Activation Request <ACCTRQ>  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 158
+8.6.2  Activation Response <ACCTRS>  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 160
+8.6.3  Status Codes . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 161
+8.6.4  Service Activation Synchronization . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 162
+8.6.5  Examples  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 164
+8.7  Name and Address Changes  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 165
+8.7.1  Change User Information Request <CHGUSERINFORQ> . . . . . . . . . . . . . . . . 165
+8.7.2  Change User Information Response <CHGUSERINFORS> . . . . . . . . . . . . . . . 166
+8.7.3  Status Codes . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 166
+8.7.4  Change User Information Synchronization  . . . . . . . . . . . . . . . . . . . . . . . . . . . . 167
+8.8  User Information  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 168
+8.8.1  User Information Request (<USERINFORQ>)  . . . . . . . . . . . . . . . . . . . . . . . . . . 169
+8.8.2  User Information Response (<USERINFORS>)  . . . . . . . . . . . . . . . . . . . . . . . . . 169
+8.8.3  Status Codes . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 169
+8.9  Signup Message Set Profile Information . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 170
+Chapter 9   Recurring Transactions  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 175
+9.1  Creating a Recurring Model  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 175
+9.2  Recurring Instructions <RECURRINST> . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 176
+9.2.1  Values for <FREQ>  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 176
+9.2.2  Examples  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 177
+9.3  Retrieving Transactions Generated by a Recurring Model  . . . . . . . . . . . . . . . . . . . . 179
+9.3.1  Models and Sync Behavior  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 179
+9.4  Modifying and Canceling Individual Transactions  . . . . . . . . . . . . . . . . . . . . . . . . . . 179
+9.5  Modifying and Canceling Recurring Models . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 180
+9.5.1  Examples  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 180
+9.6  Expired Models . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 183
+Chapter 10   Customer to FI Communication  . . . . . . . . . . . . . . . . . . . . . . . . . 161
+10.1  The E-Mail Message Set . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 161
+10.2  E-Mail Messages . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 161
+10.2.1  Regular vs. Specialized E-Mail  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 162
+10.2.2  Basic <MAIL> Aggregate . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 162
+10.2.3  E-Mail <MAILRQ> <MAILRS>  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 164
+
+--- PAGE 8 ---
+   
+viii OFX 2.3 Specification10/16/2020
+10.2.4  E-Mail Synchronization <MAILSYNCRQ> <MAILSYNCRS>  . . . . . . . . . . . . 166
+10.2.5  E-Mail Example . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 167
+10.3  Get HTML Page  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 170
+10.3.1  MIME Get Request and Response <GETMIMERQ> <GETMIMERS> . . . . . . 170
+10.3.2  MIME Example  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 171
+10.4  Message Sets and Profile  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 173
+10.4.1  Message Set and Messages  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 173
+10.4.2  E-Mail Message Set Profile . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 173
+Chapter 11   Banking  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .185
+11.1  Consumer and Business Banking . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 185
+11.1.1  Loan Data . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 185
+11.2  Credit Card Data . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 186
+11.3  Common Banking Aggregates  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 186
+11.3.1  Banking Account <BANKACCTFROM> and <BANKACCTTO>  . . . . . . . . . 187
+11.3.2  Credit Card Account <CCACCTFROM> and <CCACCTTO>  . . . . . . . . . . . . 191
+11.3.3  Bank Account Information <BANKACCTINFO> . . . . . . . . . . . . . . . . . . . . . . . 192
+11.3.4  Credit Card Account Information <CCACCTINFO> . . . . . . . . . . . . . . . . . . . . 194
+11.3.5  Transfer Information <XFERINFO>  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 194
+11.3.6  Transfer Processing Status <XFERPRCSTS> . . . . . . . . . . . . . . . . . . . . . . . . . . . 197
+11.3.7  Loan Account <LOANACCTFROM> and <LOANACCTTO> . . . . . . . . . . . . 198
+11.3.8  Loan Account Information <LOANACCTINFO>  . . . . . . . . . . . . . . . . . . . . . . 199
+11.3.9  Loan Transaction Amount <LOANTRNAMT>  . . . . . . . . . . . . . . . . . . . . . . . . 203
+11.3.10  Last Payment Info <LASTPMTINFO>  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 203
+11.4  Downloading Transactions and Balances . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 204
+11.4.1  Posted and Pending Transactions . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 205
+11.4.2  Bank Statement Download  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 206
+11.4.3  Credit Card Statement Download  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 210
+11.4.4  Statement Transaction <STMTTRN> and <STMTTRNP>  . . . . . . . . . . . . . . . . 214
+11.4.5  Loan Statement Download  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 221
+11.4.6  Loan Statement Transaction <LOANSTTMTTRN>  . . . . . . . . . . . . . . . . . . . . . 224
+11.4.7  Amortization Schedule Download . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 227
+11.5  Statement Closing Information . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 230
+11.5.1  Statement Closing Download  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 230
+11.5.2  Non-Credit Card Statement <CLOSING>  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 232
+11.5.3  Credit Card Statement Closing Request <CCSTMTENDRQ>  . . . . . . . . . . . . 235
+11.5.4  Credit Card Statement Closing Response <CCSTMTENDRS>  . . . . . . . . . . . 235
+11.5.5  Loan Statement End Request <LOANSTMTENDRQ>  . . . . . . . . . . . . . . . . . . 239
+
+--- PAGE 9 ---
+   
+ 
+OFX 2.3 Specification ix10/16/2020
+11.5.6  Loan Statement End Response <LOANSTMTENDRS>  . . . . . . . . . . . . . . . . . 239
+11.5.7  Status Codes . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 240
+11.5.8  Loan Closing <LOANCLOSING> . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 241
+11.6  Stop Check . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 244
+11.6.1  Stop Check Add  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 245
+11.6.2  Status Codes . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 248
+11.7  Intrabank Funds Transfer  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 249
+11.7.1  Intrabank Funds Transfer Addition . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 250
+11.7.2  Intrabank Funds Transfer Modification  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 253
+11.7.3  Intrabank Funds Transfer Cancellation . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 256
+11.8  Interbank Funds Transfer  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 258
+11.8.1  Interbank Funds Transfer – US . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 258
+11.8.2  Interbank Funds Transfer – International Usage . . . . . . . . . . . . . . . . . . . . . . . 259
+11.8.3  Interbank Funds Transfer Modification  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 262
+11.8.4  Interbank Funds Transfer Cancellation . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 265
+11.9  Wire Funds Transfer  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 267
+11.9.1  Wire Funds Transfer Addition  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 268
+11.9.2  Wire Funds Transfer Cancellation  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 272
+11.10  Recurring Funds Transfer . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 274
+11.10.1  Recurring Intrabank Funds Transfer Addition  . . . . . . . . . . . . . . . . . . . . . . . 274
+11.10.2  Recurring Intrabank Funds Transfer Modification  . . . . . . . . . . . . . . . . . . . . 277
+11.10.3  Recurring Intrabank Funds Transfer Cancellation  . . . . . . . . . . . . . . . . . . . . 280
+11.10.4  Recurring Interbank Funds Transfer Addition  . . . . . . . . . . . . . . . . . . . . . . . 281
+11.10.5  Recurring Interbank Funds Transfer Modification  . . . . . . . . . . . . . . . . . . . . 284
+11.10.6  Recurring Interbank Funds Transfer Cancellation  . . . . . . . . . . . . . . . . . . . . 287
+11.11  E-Mail and Customer Notification . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 289
+11.11.1  Banking E-Mail  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 289
+11.11.2  Notifications . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 292
+11.11.3  Returned Check and Deposit Notification  . . . . . . . . . . . . . . . . . . . . . . . . . . . 293
+11.11.4  Loan E-Mail  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 295
+11.12  Data Synchronization for Banking . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 297
+11.12.1  Data Synchronization for Stop Check  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 297
+11.12.2  Data Synchronization for Intrabank Funds Transfers . . . . . . . . . . . . . . . . . . 298
+11.12.3  Data Synchronization for Interbank Funds Transfers . . . . . . . . . . . . . . . . . . 301
+11.12.4  Data Synchronization for Wire Funds Transfers  . . . . . . . . . . . . . . . . . . . . . . 303
+11.12.5  Data Synchronization for Recurring Intrabank Funds Transfers  . . . . . . . . 305
+11.12.6  Data Synchronization for Recurring Interbank Funds Transfers  . . . . . . . . 307
+11.12.7  Data Synchronization for Bank Mail  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 309
+
+--- PAGE 10 ---
+   
+x OFX 2.3 Specification10/16/2020
+11.12.8  Data Synchronization for Loan Mail  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 311
+11.13  Message Sets and Profile  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 313
+11.13.1  Message Sets and Messages . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 314
+11.13.2  Bank Message Set Profile . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 321
+11.13.3  Credit Card Message Set Profile . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 323
+11.13.4  Interbank Funds Transfer Message Set Profile . . . . . . . . . . . . . . . . . . . . . . . . 324
+11.13.5  Wire Transfer Message Set Profile  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 325
+11.13.6  Loan Message Set Profile . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 326
+11.14  Examples  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 327
+11.14.1  Statement Download  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 327
+11.14.2  Intrabank Funds Transfer  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 329
+11.14.3  Stop Check  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 331
+11.14.4  Recurring Transfers . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 334
+11.14.5  Loans . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 344
+Chapter 12   Payments . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .343
+12.1  Consumer and Business Payments  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 343
+12.2  The Payee Model . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 343
+12.2.1  Payee Identifiers  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 343
+12.2.2  Payee Lists  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 344
+12.2.3  Standard Payee Lists . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 345
+12.2.4  Identifying Payees . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 346
+12.2.5  Side Effects of Payee Adds and Modifications . . . . . . . . . . . . . . . . . . . . . . . . . 347
+12.3  Identifiers Used in Payment Transactions  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 347
+12.4  The Payment Life Cycle . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 349
+12.4.1  Payment Creation  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 349
+12.4.2  Payment Modification  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 349
+12.4.3  Payment Status Inquiry  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 350
+12.4.4  Payment Cancellation . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 350
+12.4.5  Delayed Payee Matching  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 350
+12.5  Common Payments Aggregates . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 351
+12.5.1  Payments Account Information <BPACCTINFO> . . . . . . . . . . . . . . . . . . . . . . 351
+12.5.2  Payment Information <PMTINFO>  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 352
+12.6  Payments Functions . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 359
+12.6.1  Payment Creation  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 360
+12.6.2  Payment Modification  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 363
+12.6.3  Payment Cancellation . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 367
+12.6.4  Payment Status Inquiry  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 369
+
+--- PAGE 11 ---
+   
+ 
+OFX 2.3 Specification xi10/16/2020
+12.7  Recurring Payments . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 370
+12.7.1  Creating a Recurring Payment  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 372
+12.7.2  Recurring Payment Modification . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 375
+12.7.3  Recurring Payment Cancellation  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 379
+12.8  Payment Mail  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 381
+12.8.1  Payment Mail Request and Response  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 381
+12.8.2  Payment Mail Synchronization . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 384
+12.9  Payee Lists . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 385
+12.9.1  Adding a Payee to the Payee List . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 387
+12.9.2  Payee Modification . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 389
+12.9.3  Payee Deletion . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 393
+12.9.4  Payee List Synchronization . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 395
+12.10  Data Synchronization for Payments  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 397
+12.10.1  Payment Synchronization  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 398
+12.10.2  Recurring Payment Synchronization . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 400
+12.10.3  Discussion  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 402
+12.11  Message Sets and Profile . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 403
+12.11.1  Bill Pay Message Sets and Messages  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 404
+12.11.2  Bill Pay Message Set Profile <BILLPAYMSGSET> . . . . . . . . . . . . . . . . . . . . . 406
+12.12  Examples  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 408
+12.12.1  Scheduling a Payment  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 408
+12.12.2  Modifying a Payment . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 412
+12.12.3  Canceling a Payment  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 415
+12.12.4  Updating Payment Status  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 416
+12.12.5  Scheduling a Recurring Payment . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 417
+12.12.6  Modifying a Recurring Payment  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 419
+12.12.7  Canceling a Recurring Payment . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 422
+12.12.8  Adding a Payee to the Payee List . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 423
+12.12.9  Synchronizing Scheduled Payments  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 425
+Chapter 13   Investments . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 427
+13.1  Types of Response Information  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 428
+13.2  Sub-Accounts  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 428
+13.3  Units, Precision, and Signs  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 428
+13.3.1  Units  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 428
+13.3.2  Precision . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 429
+13.3.3  Signs  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 429
+13.4  Bank and Investment Transactions  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 430
+
+--- PAGE 12 ---
+   
+xii OFX 2.3 Specification10/16/2020
+13.5  Money Market Funds . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 430
+13.5.1  Separate Account at the Financial Institution . . . . . . . . . . . . . . . . . . . . . . . . . . 430
+13.5.2  Sweep Account Within an Investment Account . . . . . . . . . . . . . . . . . . . . . . . . 431
+13.5.3  Position Within an Investment Account  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 431
+13.6  Investment Accounts  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 431
+13.6.1  Specifying the Investment Account <INVACCTFROM>  . . . . . . . . . . . . . . . . 431
+13.6.2  Investment Account Information <INVACCTINFO>  . . . . . . . . . . . . . . . . . . . 432
+13.6.3  Brokerage, Mutual Fund, and 401K Accounts  . . . . . . . . . . . . . . . . . . . . . . . . . 433
+13.7  Investment Message Sets and Profile . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 434
+13.7.1  Investment Statement Download . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 435
+13.7.2  Security Information . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 438
+13.8  Investment Securities . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 441
+13.8.1  Security Identification <SECID>  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 441
+13.8.2  Security List Request . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 441
+13.8.3  Security List Response  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 443
+13.8.4  Security List <SECLIST> . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 444
+13.8.5  Securities Information  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 445
+13.9  Investment Statement Download . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 451
+13.9.1  Investment Statement Request  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 451
+13.9.2   Investment Statement Response  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 454
+13.9.3  401(k) Account Information . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 478
+13.10  Investment Statement Closing Information  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 484
+13.10.1  Request <INVSTMTENDRQ>  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 485
+13.10.2  Response <INVSTMTENDRS>  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 485
+13.10.3  Investment Statement <INVCLOSING>  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 486
+13.11  Investment E-Mail  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 487
+13.11.1  Investment E-Mail Request and Response  . . . . . . . . . . . . . . . . . . . . . . . . . . . 487
+13.11.2  Investment E-Mail Synchronization . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 489
+13.12  Complete Example  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 491
+13.13  Complete 401(k) Example  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 496
+Chapter 14   Bill Presentment  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .503
+14.1  Overview  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 503
+14.1.1  Bill Presentment Model  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 503
+14.1.2  Servers and Message Sets . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 503
+14.2  Biller Directory  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 504
+14.2.1  Client Signon to the Biller Directory Server  . . . . . . . . . . . . . . . . . . . . . . . . . . . 504
+
+--- PAGE 13 ---
+   
+ 
+OFX 2.3 Specification xiii10/16/2020
+14.2.2  Search Arguments . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 504
+14.2.3  Identification of Bill Publishers . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 504
+14.2.4  Find Biller Request <FINDBILLERRQ> . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 505
+14.2.5  Find Biller Response <FINDBILLERRS>  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 507
+14.2.6  Status Codes <FINDBILLERRS> . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 509
+14.2.7  Account Number Validation . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 510
+14.2.8  Biller Payment Restrictions  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 511
+14.3  Customer Signup  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 512
+14.3.1  Enrollment  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 513
+14.3.2  Account Inquiry  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 513
+14.3.3  Service Activation . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 516
+14.3.4  Service Status Update for Groups of Customers  . . . . . . . . . . . . . . . . . . . . . . . 518
+14.4  Bill Delivery . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 522
+14.4.1  Bill Delivery Process . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 522
+14.4.2  Bill List Retrieval . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 522
+14.4.3  Bill Detail Retrieval . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 536
+14.4.4  Table Structure Definition . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 540
+14.4.5  Delivery Notification  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 542
+14.4.6  Bill Status Modification  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 545
+14.5  Bill Payment  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 546
+14.5.1  Remittance Information . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 546
+14.5.2  Payee Identification  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 546
+14.6  Bill Presentment E-Mail . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 547
+14.6.1  Bill Presentment Mail Request <PRESMAILRQ> . . . . . . . . . . . . . . . . . . . . . . . 548
+14.6.2  Bill Presentment Mail Response <PRESMAILRS> . . . . . . . . . . . . . . . . . . . . . . 548
+14.6.3  Status Codes <PRESMAILRS> . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 549
+14.6.4  Request <PRESMAILSYNCRQ> . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 550
+14.6.5  Response <PRESMAILSYNCRS>. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 551
+14.7  Message Sets and Profile . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 552
+14.7.1  Message Sets and Messages . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 552
+14.7.2  Biller Directory Message Set Profile . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 556
+14.7.3  Bill Delivery Message Set Profile  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 556
+14.8  Bill Presentment Examples  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 558
+14.8.1  Find Biller Examples . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 558
+14.8.2  Enrollment Examples . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 565
+14.8.3  Activation Example  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 567
+14.8.4  Bill Delivery Examples . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 569
+Chapter 15   Images  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 579
+
+--- PAGE 14 ---
+   
+xiv OFX 2.3 Specification10/16/2020
+15.1  Overview  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 579
+15.2  Image Download Options . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 579
+15.2.1  Image Retrieval Method # 1: Reference Type OPAQUE . . . . . . . . . . . . . . . . . 580
+15.2.2  Image Retrieval Method # 2: Reference Type URL  . . . . . . . . . . . . . . . . . . . . . 582
+15.2.3  Image Retrieval Method # 3: Reference Type FORMURL  . . . . . . . . . . . . . . . 583
+15.3  Message Sets and Profile  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 584
+15.3.1  Image Message Set Request Messages . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 584
+15.3.2  Image Message Set Response Messages  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 584
+15.3.3  Image Message Set Profile . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 584
+15.4  Examples  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 586
+15.4.1  Transaction Image Example  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 586
+15.4.2  Statement Closing Image Example . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 590
+15.4.3  Transaction FORMURL Example . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 593
+15.4.4  Profile Request and Response Showing Image Support . . . . . . . . . . . . . . . . . 595
+Chapter 16   Automatic 1-Way OFX . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .599
+16.1  RequestOFX Form . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 599
+16.1.1  User Credentials <USERID>, <USERPASS>, <CRED2>, <CRED3>, 
+<CLIENTUID> . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 600
+16.1.2  Challenge Question Answers  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 600
+16.1.3  Date Start and Date End <DTSTART>, <DTEND> . . . . . . . . . . . . . . . . . . . . . . 601
+16.1.4  Include Flags <INCTRAN>, <INCPOS>, <INCBAL> . . . . . . . . . . . . . . . . . . . . 601
+16.1.5  Account ID <ACCTID> . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 601
+16.1.6  Account Type <ACCTTYPE> . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 602
+16.2  HTTP Form Response  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 603
+16.2.1  Response to RequestOFX Form . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 603
+16.2.2  Status Responses . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 604
+16.2.3  Challenge Response  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 604
+16.3  Automatic 1-Way URL . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 605
+16.4  Redirection and Cookies  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 605
+16.5  Examples  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 606
+16.5.1  Example - Failed Multiple Statements Request  . . . . . . . . . . . . . . . . . . . . . . . . 606
+16.5.2  Example - MFA Challenge Response . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 606
+16.5.3  Banking and Credit Card Statements . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 607
+16.5.4  Example - Banking Accounts with Multiple Accounts and Ampersand in 
+Password  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 612
+16.5.5  Example - Banking, Balance only  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 614
+16.5.6  Investment Statement, Balances and Positions . . . . . . . . . . . . . . . . . . . . . . . . . 616
+
+--- PAGE 15 ---
+   
+ 
+OFX 2.3 Specification xv10/16/2020
+Appendix A   Status Codes  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 623
+Appendix B   Suggested Name Values for the Banking <BALLIST> . . . . . . . 631
+B.1  Usage Field Values . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 631
+B.2  Name and Description Table  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 631
+Appendix C   Change History  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 635
+C.1  OFX 1.6 to 2.0  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 635
+C.1.1  Specification Changes by Chapter . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 635
+C.2  OFX 2.0 to 2.0.1 . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 638
+C.2.1  Specification Changes by Chapter . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 639
+C.3  OFX 2.0.1 to 2.0.2  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 642
+C.3.1  Specification Changes by Chapter . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 642
+C.3.2  DTD Changes  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 643
+C.4  OFX 2.0.2 to 2.1 . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 644
+C.4.1  Specification Changes by Chapter . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 645
+C.5  OFX 2.1 to 2.1.1 . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 648
+C.5.1  Specification Changes by Chapter . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 648
+C.6  OFX 2.1.1 to 2.2 . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 650
+C.6.1  Specification Changes by Chapter . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 650
+C.7  OFX 2.2.0 to OFX 2.2.1 . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 655
+C.7.1  Specification Changes by Chapter . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 657
+C.8  OFX 2.2.1 to OFX 2.3  . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 658
+
+--- PAGE 16 ---
+   
+xvi OFX 2.3 Specification10/16/2020
+
+--- PAGE 17 ---
+   
+OFX 2.3 Specification 1710/16/2020
+CHAPTER 1  OVERVIEW
+1.1 Introduction
+Open Financial Exchange is a broad-based framework for exchanging financial data and instructions 
+between customers and their financial institutions. It allows institutions to connect directly to their 
+customers without requiring an intermediary.
+Open Financial Exchange is an open specification that anyone can implement: any financial institution, 
+transaction processor, software developer, or other party. It uses widely accepted open standards for data 
+formatting (such as XML), connectivity (such as TCP/IP and HTTP), and transport-level security.
+Open Financial Exchange defines the request and response messages used by each financial service as well 
+as the common framework and infrastructure to support the communication of those messages. This 
+specification does not describe any specific product implementation.
+
+
+--- PAGE 18 ---
+   
+18 1.1  Introduction
+1.1.1 Design Principles
+The following principles were used in designing Open Financial Exchange:
+• Broad Range of Financial Activities – Open Financial Exchange provides support for a broad 
+range of financial activities. Open Financial Exchange 2.2 specifies the following services:
+• Bank statement download
+• Credit card statement download
+• Funds transfers including recurring transfers
+• Loan statement download
+• Consumer payments, including recurring payments
+• Business payments, including recurring payments
+• Brokerage and mutual fund statement download, including transaction history, current holdings, and 
+balances for normal, and 401(k) accounts
+• Bill presentment and payment
+• Tax form download, including 1095, 1098, 1099, and W2 (presented as annual addenda).
+• Image download for banking, credit cards, investments and loans
+• Automatic 1-Way OFX
+• Broad Range of Financial Institutions – Open Financial Exchange supports communication with 
+a broad range of financial institutions (FIs), including:
+• Banks
+• Brokerage houses
+• Merchants
+• Processors
+• Financial advisors
+• Government agencies
+• Broad Range of Front-End Applications – Open Financial Exchange supports a broad range of 
+front-end applications, including Web-based applications, covering all types of financial activities 
+running on all types of platforms.
+• Extensible – Open Financial Exchange has been designed to allow the easy addition of new services. 
+Future versions will include support for many new services.
+• Open – This specification is publicly available. You can build client and server applications using the 
+Open Financial Exchange protocols independent of any specific technology, product, or company.
+• Multiple Client Support – Open Financial Exchange allows a user to use multiple client applications 
+to access the same data at a financial institution. With the popularity of the World Wide Web, 
+customers are increasingly more likely to use multiple applications—either desktop-based or Web-
+
+--- PAGE 19 ---
+   
+OFX 2.3 Specification 1910/16/2020
+based—to perform financial activities. For example, a customer can track personal finances at home 
+with a desktop application and occasionally pay bills while at work with a Web-based application. The 
+use of data synchronization to support multiple clients is a key innovation in Open Financial Exchange.
+• Robust – Open Financial Exchange will be used for executing important financial transactions and for 
+communicating important financial information. Assuring users that transactions are executed and 
+information is correct is crucial. Open Financial Exchange provides robust protocols for error recovery.
+• Secure – Open Financial Exchange provides a framework for building secure online financial 
+services. In Open Financial Exchange, security encompasses authentication of the parties involved, as 
+well as secrecy and integrity of the information being exchanged including various MFA solutions.
+• Batch & Interactive – The design of request and response messages in Open Financial Exchange is 
+for use in either batch or interactive style of communication. Open Financial Exchange provides for 
+applying a single authentication context to multiple requests in order to reduce the overhead of user 
+authentication.
+• International Support – Open Financial Exchange is designed to supply financial services 
+throughout the world. It supports multiple currencies, country-specific extensions, and different forms 
+of encoding such as UNICODE.
+• Platform Independent –Open Financial Exchange can be implemented on a wide variety of front-
+end client devices. It also supports a wide variety of Web-based environments and messaging 
+frameworks, including those using SOAP , HTML, Java, JavaScript, or ActiveX. Similarly on the back-
+end, Open Financial Exchange can be implemented on a wide variety of server systems, including those 
+running UNIX, Windows NT, or OS/2.
+• Transport Independent – Open Financial Exchange is independent of the data communication 
+protocol used to transport the messages between the client and server computers. Open Financial 
+Exchange 2.2 uses HTTP.
+
+--- PAGE 20 ---
+   
+20 1.2  Open Financial Exchange at a Glance
+1.2 Open Financial Exchange at a Glance
+The design of Open Financial Exchange is as a client and server system. An end-user uses a client 
+application to communicate with a server at a financial institution. The form of communication is requests 
+from the client to the server and responses from the server back to the client.
+Open Financial Exchange uses the Internet Protocol (IP) suite to provide the communication channel 
+between a client and a server. IP protocols are the foundation of the public Internet and a private network 
+can also use them.
+1.2.1 Data Transport
+Clients use the HyperText Transport Protocol (HTTP) to communicate to an Open Financial Exchange 
+server. The World Wide Web throughout uses the same HTTP protocol. In principle, a financial institution 
+can use any off-the-shelf web server to implement its support for Open Financial Exchange.
+To communicate by means of Open Financial Exchange over the Internet, the client must establish an 
+Internet connection. This connection can be a dial-up Point-to-Point Protocol (PPP) connection to an 
+Internet Service Provider (ISP) or a connection over a local area network that has a gateway to the Internet.
+Clients use the HTTP POST command to send a request to the previously acquired Uniform Resource 
+Locator (URL) for the desired financial institution. The URL presumably identifies a Common Gateway 
+Interface (CGI) or other process on an FI server that can accept Open Financial Exchange requests and 
+produce a response.
+
+--- PAGE 21 ---
+   
+OFX 2.3 Specification 2110/16/2020
+The POST identifies the data as being of type application/x-ofx. Use application/x-ofx as the return type as 
+well. Fill in other fields per the HTTP 1.0 (or more recent HTTP 1.x) specification. Here is a typical 
+request:
+POST http://www.fi.com/ofx.cgi HTTP/1.0HTTP headers
+User-Agent:MyApp 5.0
+Content-Type: application/x-ofx
+Content-Length: 1032
+<!--XML declaration-->
+<?xml version="1.0"?>
+<!--OFX declaration-->
+<?OFX OFXHEADER="200" VERSION="220" SECURITY="NONE" OLDFILEUID="NONE" 
+NEWFILEUID="NONE"?>
+<!--OFX request-->
+<OFX>
+... Open Financial Exchange requests ...
+</OFX>
+A blank line defines the separation between the HTTP headers and the start of the Open Financial 
+Exchange headers.
+The structure of a response is similar to the request, with the first line containing the standard HTTP result, 
+as shown next. The content length is given in bytes.
+HTTP 1.0 200 OK HTTP headers
+Content-Type: application/x-ofx
+Content-Length: 8732
+<!--XML declaration-->
+<?xml version="1.0"?>
+<!--OFX declaration-->
+<?OFX OFXHEADER="200" VERSION="220" SECURITY="NONE" OLDFILEUID="NONE" 
+NEWFILEUID="NONE"?>
+<!--OFX response-->
+... Open Financial Exchange responses ...
+</OFX>
+
+--- PAGE 22 ---
+   
+22 1.2  Open Financial Exchange at a Glance
+1.2.2 Request and Response Model
+The basis for Open Financial Exchange is the request and response model. One or more requests can be 
+batched in a single file. This file typically includes a signon request and one or more service-specific 
+requests. An FI server will process all of the requests and return a single response file. This batch model 
+lends itself to Internet transport as well as other off-line transports. Both requests and responses are plain 
+text files, formatted using a grammar based on Extensible Markup Language (XML).
+Here is a simplified example of an Open Financial Exchange request file. (This example does not show the 
+Open Financial Exchange headers and the indentation is only for readability.) For complete details, see the 
+more complete examples throughout this specification.
+<OFX> <!-- Begin request data -->
+<SIGNONMSGSRQV1>
+<SONRQ> <!-- Begin signon --> 
+<DTCLIENT>20051029101000</DTCLIENT><!-- Oct. 29, 2005, 10:10:00 
+am -->
+<USERID>MyUserID</USERID> <!-- User ID -->
+<USERPASS>MyPassword</USERPASS> <!-- Password (Transport level 
+encrypted) -->
+<LANGUAGE>ENG</LANGUAGE> <!-- Language used for text -->
+<FI> <!-- ID of receiving institution 
+-->
+<ORG>NCH</ORG> <!-- Name of ID owner -->
+<FID>1001</FID> <!-- Actual ID -->
+</FI>
+<APPID>MyApp</APPID>
+<APPVER>0500</APPVER>
+</SONRQ> <!-- End of signon -->
+</SIGNONMSGSRQV1>
+<BANKMSGSRQV1>
+<STMTTRNRQ> <!-- First request in file -->
+<TRNUID>1001</TRNUID>
+<STMTRQ> <!-- Begin statement request -->
+<BANKACCTFROM> <!-- Identify the account -->
+<BANKID>121099999</BANKID> <!-- Routing transit or other FI 
+ID -->
+<ACCTID>999988</ACCTID> <!-- Account number -->
+<ACCTTYPE>CHECKING</ACCTTYPE><!-- Account type -->
+</BANKACCTFROM> <!-- End of account ID -->
+<INCTRAN> <!-- Begin include transaction --
+>
+<INCLUDE>Y</INCLUDE> <!-- Include transactions -->
+
+--- PAGE 23 ---
+   
+OFX 2.3 Specification 2310/16/2020
+</INCTRAN> <!-- End of include transaction -
+->
+</STMTRQ> <!-- End of statement request -->
+</STMTTRNRQ> <!-- End of first request -->
+</BANKMSGSRQV1>
+</OFX> <!-- End of request data -->
+The response format follows a similar structure. Although a response, such as a statement response, 
+contains all of the details of each transaction, each individual detail of the statement is identified using 
+tags.
+The key rule of Open Financial Exchange syntax is that each tag is either an element or an aggregate. Data 
+follows its element tag. An aggregate tag begins a compound tag sequence, which must end with a 
+matching tag; for example, <AGGREGATE> ... </AGGREGATE>. 
+The file sent by Open Financial Exchange does not require any white space between tags.
+White space following a tag delimiter (>), following an element value, or preceding a tag delimiter (<) 
+should be ignored. White space within an element value (i.e. not preceding, not following) is significant. If 
+white space is desired preceding or following an element value, this is achieved using the CDATA 
+wrapper. If more than one white space element is needed, then multiple &nbsp macros should be utilized. 
+See section 2.3.1.1.
+
+--- PAGE 24 ---
+   
+24 1.2  Open Financial Exchange at a Glance
+1.2.3 HTTP Form Request and Response Model
+OFX 2.2 also supports form requests to a website supporting an HTTP form request and response model. 
+This is discussed in Chapter 16, "Automatic 1-Way OFX".
+Having authenticated the request, the web site responds with an OFX download, just as if the customer had 
+manually entered the OFX request at the site.
+Here is a typical successful response:
+HTTP 1.0 200 OK HTTP headers
+Content-Type: application/x-ofx
+Content-Length: 8732
+<?OFX OFXHEADER="200" VERSION="220" SECURITY="NONE" OLDFILEUID="NONE"
+NEWFILEUID="NONE"?>
+<OFX>
+... Open Financial Exchange response following the OFX specification...
+</OFX>
+
+--- PAGE 25 ---
+   
+OFX 2.3 Specification 2510/16/2020
+1.3 Definitions
+The following sections detail definitions that hold within the context of OFX.
+1.3.1 User
+User refers to the person or entity interfacing with the OFX client to cause it to generate OFX requests.
+1.3.2 Financial Institution
+Financial Institution (FI) refers to the institution with which the user has a direct relationship. Generally 
+this means a bank, but in many cases it may be an institution providing non-banking financial services.
+1.3.3 Service Provider
+Service Provider (SP) refers to an institution with which the user does not have a direct relationship. 
+Generally, such an institution is subcontracted by the FI to provide specific services to the customer on 
+behalf of the FI.
+1.3.4 Client
+An OFX client is the software that generates OFX requests, receives responses and processes them. This 
+may be a personal finance manager, a web browser running locally interactive code (such as with a Java 
+applet or ActiveX control), a Web server, a proxy, or one of many other possibilities.
+1.3.5 Server
+An OFX server is the software that receives OFX requests, processes them, and generates OFX responses.
+1.3.6 Service
+A service is a collection of related transactions. For example, the BANKSVC service encompasses 
+banking transactions such as requesting bank statements, initiating stop checks, initiating wire transfers, 
+etc.
+In OFX 1.x and 2.x, services are used directly only when describing or changing the general options 
+available to a particular customer. Other collections of transactions instead use the concept of Message 
+Sets as described in section 1.3.15.
+
+--- PAGE 26 ---
+   
+26 1.3  Definitions
+1.3.7 Tag
+Tag is the generic name for either a start tag or an end tag. A start tag consists of an element or aggregate 
+name surrounded by angle brackets. An end tag is the same as a start tag, with the addition of a forward 
+slash immediately preceding the name. For example, the start tag for the aggregate named FOO looks like 
+this:
+<FOO>
+The end tag for the same aggregate looks like this:
+</FOO>
+1.3.8 Element
+An OFX document contains one or more elements. An element is some data bounded by a leading start tag 
+and a trailing end tag. For example, an element named BAZ, containing data “bar,” looks like this:
+<BAZ>bar</BAZ><!-- An element ended by its own end tag-->
+An OFX element must contain data (not just white space) and may not contain other elements. This is a 
+refinement to the XML definition of an element which is more generic. An XML element containing other 
+elements is defined in OFX as an aggregate. OFX specifically disallows empty elements and elements 
+with mixed content.
+1.3.9 Aggregate
+An aggregate is a collection of elements and/or other aggregates. An aggregate may not contain any data 
+itself, but rather contains elements containing data, and/or recursively contains aggregates.
+OFX includes very few empty aggregates and clients and servers should not send an aggregate without 
+content. In general, the entire aggregate should be left out of a request or response file when its (optional) 
+content is missing. The few exceptions to these rules (such as <SECLISTRS>, described in section 
+13.8.3.3) are called out in the relevant sections of this document.
+
+--- PAGE 27 ---
+   
+OFX 2.3 Specification 2710/16/2020
+1.3.10 Request
+A request is information sent by the client. An OFX request file is the entire XML file sent by the client, 
+including the OFX declaration. An individual request generally is an aggregate whose name ends in RQ. 
+1.3.11 Response
+A response is information sent by the server. An OFX response file is the entire XML file sent by the 
+server, including the OFX declaration. An individual response generally is an aggregate whose name ends 
+in RS.
+When elements and aggregates from the request also appear in the corresponding response they are 
+generally intended to echo the values from a request in the response (this enables client matching with the 
+request, for example). While the server should not modify data in individual elements when echoing, 
+elements not found in a particular request may be added in the response. These situations (such as adding a 
+<PAYEELSTID> when creating a <PMTRQ> response) are described as they arise. OFX also includes a 
+few specific situations requiring different information to be sent and returned in corresponding elements of 
+a request/response pair. Again, these exceptions (such as the <TOKEN> element in a sync request and 
+response) are described as they arise.
+1.3.12 Message
+A message is the unit of work in OFX. It refers to a request and response pair. For example, the message to 
+download a bank statement consists of the request <STMTRQ> and the response <STMTRS>.
+1.3.13 Transaction
+A transaction consists of a message and its associated transaction wrappers. The transaction request 
+wrapper contains a unique transaction identifier used to prevent ambiguity in matching a particular 
+response to its associated request, and the request aggregate. The transaction response wrapper contains a 
+status aggregate, the transaction identifier sent in the request, and (if the transaction was successful) the 
+response aggregate. For details on the use of transaction wrappers, see section 2.4.6.
+1.3.14 Synchronization
+For messages subject to synchronization (see Chapter 6, " Data Synchronization"), an added layer of 
+aggregates is also part of a message definition: a synchronization request and response. These add a token 
+and, in some cases, other information. Synchronization requests may encapsulate embedded transactions 
+that execute only when certain conditions are true at the server (either the containing synchronization 
+request completed without error or the request had no errors and the client was up to date).
+
+--- PAGE 28 ---
+   
+28 1.4  OFX Versions
+1.3.15 Message Set
+Message sets are collections of messages. Generally they form all or part of a service (as defined in section 
+1.3.6). OFX utilizes these smaller groupings when wrapping request or response transactions, profiling 
+server support for the wrappers and describing individual messages. The BANKSVC service, for example, 
+is broken into the BANKMSGSET, CREDITCARDMSGSET, INTERXFERMSGSET and 
+WIREXFERMSGSET message sets.
+Please refer to section 2.4.5 , " Message Sets and Version Control" for additional information about 
+message sets.
+1.4 OFX Versions
+There are several distinct versions of OFX clients and servers. An OFX server responds "in kind" to the 
+version of the OFX request.  So an OFX client wanting to speak OFX 2.2.1 would send 221 in the 
+appropriate header in the request and the server would respond "in kind". This implies:
+• The client sends the latest VERSION: header value that it can support (e.g. VERSION:221)
+• The server echoes that value, or a lower value if that’s all it can support (e.g. VERSION:220)
+• If the client sends an older VERSION than the server supports, the server should echo that VERSION 
+in the response and more importantly, it must return only tags that the client can handle.
+Version 1.0.2 supports any or all version 1 message sets except Bill Presentment. These message sets are 
+defined by the OFX 1.0.2 Document Type Definition (DTD), which is used for parsing. Applications that 
+conform to this version are referred to as 1.0.2 clients and 1.0.2 servers. 
+Version 1.0.3 extends 1.0.2 by adding support for Muli-Factor Authentication.
+Version 1.5.1 supports all version 2 message sets, Bill Presentment, and all version 1 message sets. 
+Because it supports all message sets, the OFX 1.5.1 DTD can be used to create and support OFX 1.0.2 and/
+or OFX 1.5.1 clients and servers.
+Version 1.6 DTD supports all message sets available in the OFX 1.5.1 DTD. It adds specific enhancements 
+to some of the aggregates. All of those enhancements are optional and should not be used by a client unless 
+the server indicates support in its FI Profile. Applications that conform to this version are referred to as 1.6 
+clients and 1.6 servers. The OFX 1.6 DTD fully incorporates the OFX 1.0.2 and 1.5.1 message sets, so it 
+can be used to support both 1.0.2 and 1.5.1 applications.
+Version 2.0 supports all V1 message sets available in the OFX 1.6 DTD. It adds support for 401(k) 
+investment statement download. The Tax OFX addendum to OFX 2.0 adds support for 1099 and W2 
+download. An important change for 2.0 is that it adds the requirement of XML compliance to OFX 2.0 
+clients and servers. See chapter 2 for more information.
+
+--- PAGE 29 ---
+   
+OFX 2.3 Specification 2910/16/2020
+Version 2.0.1 extends 2.0 by adding support for investment transaction reversals, by adding the capability 
+to include an arbitrary list of balances in statement and credit card statement downloads, and by adding the 
+ability to specify bill publisher information in the payment message.
+Version 2.0.2 adds clarification to 2.0.1 as well as fixes some minor documentation bugs.
+Version 2.0.3, an extension of 2.0.2, adds Multi-Factor Authentication (MFA) to the Signon Message Set 
+and changes to the Profile Message Set to support MFA.
+Version 2.1 extends 2.0.2 by adding support for loans, as well as image download for banking, credit 
+cards, investments and loans. Automatic 1-Way OFX is also new; see in Chapter 16 for details. Appendix 
+C.4 contains a full description of changes made for OFX 2.1.
+Version 2.1.1 adds Multi-Factor Authentication (MFA) to the Signon Message Set and changes to the 
+Profile Message Set to support MFA. These are virtually the same MFA changes that are added to versions 
+1.0.3 and 2.0.3.
+Version 2.2.0 extends 2.1.1 by providing additional security options, multiple new data elements and 
+aggregates to make OFX more viable for aggregation, and multiple new implementation methods for 
+existing features to reduce complexity and coordination between providers and developers. Additionally 
+the main OFX Schema and the OFX Tax Schema, which have diverged since the 2.1.1 release, were 
+reconciled in the 2.2 release (up to the 2015 tax year). Appendix C.6 contains a full description of the 
+changes made for OFX 2.2.
+In Version 2.3 Tax was removed so it is no longer necessary to update the main OFX spec with tax changes 
+every year. Appendix C.7 and C.8 contain a full description of changes made for OFX 2.2.1 and OFX 2.3.
+For an overall description of OFX message sets, see section 2.4.5.3. 
+
+--- PAGE 30 ---
+   
+30 1.5  Conventions
+1.5 Conventions
+The conventions used in the element and aggregate descriptions include the following: 
+• Required elements and aggregates are in bold. Regular face indicates elements and aggregates that are 
+optional. Required means that a client must always include the element or aggregate in a request, and a 
+server must always include the element or aggregate in a response.
+• Required elements and aggregates occur once unless noted as one or more in the description, in which 
+case the specification allows multiple occurrences. 
+• Optional elements and aggregates occur once if present unless noted as zero or more in the description, 
+in which case the specification allows multiple occurrences.
+• Character fields are identified with a data type of “ A-n”, where n is the maximum number of allowed 
+Unicode characters.
+Note: n refers to the number of characters in the resultant string. Each multi-byte or encoded 
+character counts as a single character. UTF-8 encodes “high” Latin-1 characters (decimal 128-
+255) using two bytes, and double-byte characters using three bytes. In addition, XML encodes 
+ampersands, less-than symbols, greater-than symbols, and spaces (where required) using multi-
+character escape strings (see section 2.3.1.1). Therefore, an element of type A-40 may require 
+more than 40 bytes in a UTF-8-encoded XML stream.
+• N- n identifies an element of numeric type where n is the maximum number of characters in the value. 
+Values of this type are generally whole numbers, but the data type allows negative numbers. OFX 
+includes a few fixed-position numeric values (such as <APPVER>, see section 2.5.1.5) called out in the 
+text. In all cases, elements of this type may contain only the characters 0 through 9 and - (hyphen, the 
+negative sign indicator). So an element of type “N-6” may take values from -99999 to 999999. The 
+value “0000000” would be illegal for an N-6 element. White space is not allowed within the numeric 
+value. Leading zeros are allowed, but discouraged except where noted in the text. For example, a 
+<MIN> element containing zero might be sent as “<MIN>0”, “<MIN>00”, “<MIN> 0", but not 
+“<MIN>0 0".
+• Common value types, such as a dollar amount, are referenced by name. Chapter 3, " Common 
+Aggregates, Elements, and Data Types" lists value types that are referenced by name.
+• Explanatory information is in italics
+Tag Description
+<REQUIRED> Required element or aggregate (1 or more)
+<REQUIRED2> Required element or aggregate that occurs only once 
+<OPTIONAL> Optional element or aggregate; this element or aggregate can occur 
+multiple times (0 or more) 
+<SPECIFIC> V alues are A, B, and C
+<ALPHA V ALUE> Takes a value up to 32 characters in length, A-32
+
+--- KEYWORD SEARCH ---
+Keyword 'CREDIT CARD' found on page 8
+Keyword 'CCSTMT' found on page 8
+Keyword 'STMTTRN' found on page 8
+Keyword 'CREDIT CARD' found on page 10
+Keyword 'CREDIT CARD' found on page 14
+Keyword 'CREDIT CARD' found on page 18
+Keyword 'STMTTRN' found on page 22
+Keyword 'STMTTRN' found on page 23
+Keyword 'CREDIT CARD' found on page 29
+Keyword 'CREDIT CARD' found on page 41
+Keyword 'STMTTRN' found on page 41
+Keyword 'CREDIT CARD' found on page 42
+Keyword 'STMTTRN' found on page 83
+Keyword 'STMTTRN' found on page 87
+Keyword 'CREDIT CARD' found on page 95
+Keyword 'STMTTRN' found on page 95
+Keyword 'CREDIT CARD' found on page 133
+Keyword 'CREDIT CARD' found on page 134
+Keyword 'CREDIT CARD' found on page 150
+Keyword 'CREDIT CARD' found on page 201
+Keyword 'CREDIT CARD' found on page 202
+Keyword 'STMTTRN' found on page 202
+Keyword 'CREDIT CARD' found on page 203
+Keyword 'CREDIT CARD' found on page 207
+Keyword 'STMTTRN' found on page 208
+Keyword 'CREDIT CARD' found on page 210
+Keyword 'STMTTRN' found on page 212
+Keyword 'CREDIT CARD' found on page 220
+Keyword 'CREDIT CARD' found on page 221
+Keyword 'BANKTRAN' found on page 221
+Keyword 'CREDIT CARD' found on page 222
+Keyword 'STMTTRN' found on page 222
+Keyword 'BANKTRAN' found on page 222
+Keyword 'STMTTRN' found on page 224
+Keyword 'BANKTRAN' found on page 224
+Keyword 'CREDIT CARD' found on page 226
+Keyword 'CCSTMT' found on page 226
+Keyword 'STMTTRN' found on page 226
+Keyword 'CCSTMT' found on page 227
+Keyword 'CCSTMT' found on page 228
+Keyword 'STMTTRN' found on page 228
+Keyword 'BANKTRAN' found on page 228
+Keyword 'CCSTMT' found on page 229
+Keyword 'CREDIT CARD' found on page 230
+Keyword 'STMTTRN' found on page 230
+Keyword 'BANKTRAN' found on page 230
+Keyword 'STMTTRN' found on page 231
+Keyword 'STMTTRN' found on page 232
+Keyword 'CREDIT CARD' found on page 233
+Keyword 'STMTTRN' found on page 233
+Keyword 'CREDIT CARD' found on page 234
+Keyword 'STMTTRN' found on page 234
+Keyword 'STMTTRN' found on page 235
+Keyword 'STMTTRN' found on page 236
+Keyword 'CREDIT CARD' found on page 237
+Keyword 'CCSTMT' found on page 237
+Keyword 'STMTTRN' found on page 237
+Keyword 'STMTTRN' found on page 238
+Keyword 'STMTTRN' found on page 240
+Keyword 'STMTTRN' found on page 241
+Keyword 'STMTTRN' found on page 243
+Keyword 'STMTTRN' found on page 245
+Keyword 'CREDIT CARD' found on page 246
+Keyword 'CREDIT CARD' found on page 248
+Keyword 'CREDIT CARD' found on page 251
+Keyword 'CCSTMT' found on page 251
+Keyword 'CREDIT CARD' found on page 252
+Keyword 'CCSTMT' found on page 253
+Keyword 'CREDIT CARD' found on page 254
+Keyword 'CCSTMT' found on page 254
+Keyword 'CREDIT CARD' found on page 255
+Keyword 'CCSTMT' found on page 255
+Keyword 'CREDIT CARD' found on page 329
+Keyword 'STMTTRN' found on page 330
+Keyword 'STMTTRN' found on page 331
+Keyword 'CREDIT CARD' found on page 332
+Keyword 'CCSTMT' found on page 332
+Keyword 'STMTTRN' found on page 332
+Keyword 'STMTTRN' found on page 336
+Keyword 'CREDIT CARD' found on page 339
+Keyword 'STMTTRN' found on page 343
+Keyword 'STMTTRN' found on page 344
+Keyword 'BANKTRAN' found on page 344
+Keyword 'STMTTRN' found on page 345
+Keyword 'BANKTRAN' found on page 345
+Keyword 'STMTTRN' found on page 363
+Keyword 'INVOICE' found on page 371
+Keyword 'INVOICE' found on page 380
+Keyword 'INVOICE' found on page 382
+Keyword 'INVOICE' found on page 383
+Keyword 'INVOICE' found on page 384
+Keyword 'INVOICE' found on page 385
+Keyword 'STMTTRN' found on page 464
+Keyword 'STMTTRN' found on page 465
+Keyword 'STMTTRN' found on page 479
+Keyword 'STMTTRN' found on page 480
+Keyword 'BANKTRAN' found on page 480
+Keyword 'STMTTRN' found on page 482
+Keyword 'BANKTRAN' found on page 483
+Keyword 'STMTTRN' found on page 484
+Keyword 'BANKTRAN' found on page 484
+Keyword 'BANKTRAN' found on page 485
+Keyword 'BANKTRAN' found on page 492
+Keyword 'STMTTRN' found on page 519
+Keyword 'STMTTRN' found on page 520
+Keyword 'STMTTRN' found on page 521
+Keyword 'BANKTRAN' found on page 521
+Keyword 'STMTTRN' found on page 523
+Keyword 'STMTTRN' found on page 525
+Keyword 'STMTTRN' found on page 526
+Keyword 'STMTTRN' found on page 530
+Keyword 'CREDIT CARD' found on page 540
+Keyword 'INVOICE' found on page 551
+Keyword 'CREDIT CARD' found on page 552
+Keyword 'INVOICE' found on page 556
+Keyword 'CREDIT CARD' found on page 559
+Keyword 'STMTTRN' found on page 567
+Keyword 'CREDIT CARD' found on page 607
+Keyword 'STMTTRN' found on page 614
+Keyword 'STMTTRN' found on page 615
+Keyword 'BANKTRAN' found on page 615
+Keyword 'STMTTRN' found on page 616
+Keyword 'BANKTRAN' found on page 616
+Keyword 'CREDIT CARD' found on page 623
+Keyword 'CCSTMT' found on page 627
+Keyword 'BANKTRAN' found on page 627
+Keyword 'CREDIT CARD' found on page 635
+Keyword 'STMTTRN' found on page 636
+Keyword 'BANKTRAN' found on page 636
+Keyword 'CCSTMT' found on page 637
+Keyword 'STMTTRN' found on page 637
+Keyword 'BANKTRAN' found on page 637
+Keyword 'STMTTRN' found on page 638
+Keyword 'BANKTRAN' found on page 638
+Keyword 'CCSTMT' found on page 639
+Keyword 'STMTTRN' found on page 639
+Keyword 'BANKTRAN' found on page 639
+Keyword 'CCSTMT' found on page 640
+Keyword 'STMTTRN' found on page 640
+Keyword 'STMTTRN' found on page 641
+Keyword 'BANKTRAN' found on page 641
+Keyword 'STMTTRN' found on page 642
+Keyword 'BANKTRAN' found on page 642
+Keyword 'STMTTRN' found on page 643
+Keyword 'STMTTRN' found on page 644
+Keyword 'STMTTRN' found on page 646
+Keyword 'STMTTRN' found on page 647
+Keyword 'STMTTRN' found on page 648
+Keyword 'CREDIT CARD' found on page 659
+Keyword 'CREDIT CARD' found on page 666
+Keyword 'CREDIT CARD' found on page 667
+Keyword 'CCSTMT' found on page 667
+Keyword 'STMTTRN' found on page 667
+Keyword 'BANKTRAN' found on page 671
+Keyword 'CREDIT CARD' found on page 672
+Keyword 'CCSTMT' found on page 674
+Keyword 'STMTTRN' found on page 674
+Keyword 'CREDIT CARD' found on page 675
+Keyword 'CREDIT CARD' found on page 678
+Keyword 'STMTTRN' found on page 681
+Keyword 'BANKTRAN' found on page 681
+Keyword 'CREDIT CARD' found on page 682
+Keyword 'CCSTMT' found on page 682
+Keyword 'STMTTRN' found on page 682
+Keyword 'BANKTRAN' found on page 682
+Keyword 'CREDIT CARD' found on page 683
+Keyword 'CCSTMT' found on page 683
+Keyword 'CREDIT CARD' found on page 684
+Keyword 'STMTTRN' found on page 688
+Keyword 'BANKTRAN' found on page 688
+Keyword 'CCSTMT' found on page 689
+Keyword 'STMTTRN' found on page 689
+Keyword 'STMTTRN' found on page 693
+Keyword 'BANKTRAN' found on page 693
+Keyword 'INVOICE' found on page 693
+Keyword 'STMTTRN' found on page 694
+Keyword 'STMTTRN' found on page 700

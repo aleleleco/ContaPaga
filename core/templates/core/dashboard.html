@@ -113,6 +113,35 @@
             <i data-lucide="trending-down"></i>
         </div>
     </div>
+    <div class="stat-card">
+        <div class="stat-info">
+            <h3>Total Recebido (Salário)</h3>
+            <div class="value" style="color: var(--success);">R$ {{ stats.total_salarios|floatformat:2 }}</div>
+        </div>
+        <div class="stat-icon success">
+            <i data-lucide="banknote"></i>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-info">
+            <h3>Outras Receitas</h3>
+            <div class="value" style="color: var(--primary);">R$ {{ stats.outras_receitas|floatformat:2 }}</div>
+        </div>
+        <div class="stat-icon" style="background-color: #eff6ff; color: var(--primary);">
+            <i data-lucide="arrow-up-right"></i>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-info">
+            <h3>Saldo Final (Mês)</h3>
+            <div class="value" style="color: {% if stats.total_final >= 0 %}var(--success){% else %}var(--danger){% endif %};">
+                R$ {{ stats.total_final|floatformat:2 }}
+            </div>
+        </div>
+        <div class="stat-icon {% if stats.total_final >= 0 %}success{% else %}danger{% endif %}">
+            <i data-lucide="{% if stats.total_final >= 0 %}trending-up{% else %}trending-down{% endif %}"></i>
+        </div>
+    </div>
 </div>
 
 <div class="content-grid">
@@ -135,31 +164,63 @@
                 {% for lancamento in lancamentos %}
                 <tr>
                     <td>
-                        <div style="font-weight: 600;">{{ lancamento.conta.nome }}{% if lancamento.parcela_atual %} ({{ lancamento.parcela_atual }}/{{ lancamento.total_parcelas }}){% endif %}</div>
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            <div style="font-weight: 600;">{{ lancamento.conta.nome }}{% if lancamento.parcela_atual %} ({{ lancamento.parcela_atual }}/{{ lancamento.total_parcelas }}){% endif %}</div>
+                            {% if lancamento.transacao_id %}
+                                <i data-lucide="landmark" style="width: 14px; height: 14px; color: #6366f1;" title="Importado via Extrato Bancário"></i>
+                            {% endif %}
+                        </div>
                         <div style="font-size: 0.7rem; color: var(--text-muted);">
                             {{ lancamento.conta.categoria.nome }}
                             {% if lancamento.conta.observacoes %} - <span style="font-style: italic;">{{ lancamento.conta.observacoes }}</span>{% endif %}
                         </div>
                     </td>
                     <td>{{ lancamento.vencimento|date:"d/m/Y" }}</td>
-                    <td>R$ {{ lancamento.valor_previsto|floatformat:2 }}</td>
+                    <td style="font-weight: 600; color: {% if lancamento.conta.categoria.tipo == 'saida' %}var(--danger){% else %}var(--success){% endif %};">
+                        {% if lancamento.conta.categoria.tipo == 'saida' %}-{% else %}+{% endif %} R$ {{ lancamento.valor_previsto|floatformat:2 }}
+                    </td>
                     <td>
                         <span class="badge badge-{% if lancamento.status == 'pago' %}success{% else %}warning{% endif %}">
                             {{ lancamento.get_status_display }}
                         </span>
                     </td>
-                    <td>
-                        {% if lancamento.status == 'pendente' %}
-                            {% if competencia.status == 'aberto' %}
-                            <button onclick="openPaymentModal('{{ lancamento.pk }}', '{{ lancamento.conta.nome }}', '{{ lancamento.valor_previsto }}')" class="btn" style="padding: 0.25rem 0.5rem; background-color: var(--success); color: white; font-size: 0.75rem;">
-                                <i data-lucide="dollar-sign" style="width: 14px; height: 14px;"></i> Pagar
-                            </button>
+                    <td style="white-space: nowrap;">
+                        <div style="display: flex; gap: 0.5rem; align-items: center;">
+                            {% if lancamento.status == 'pendente' %}
+                                {% if competencia.status == 'aberto' %}
+                                <button onclick="openPaymentModal('{{ lancamento.pk }}', '{{ lancamento.conta.nome }}', '{{ lancamento.valor_previsto }}')" class="btn" style="padding: 0.35rem; background-color: var(--success); color: white; border-radius: 6px; line-height: 0;" title="Pagar">
+                                    <i data-lucide="dollar-sign" style="width: 16px; height: 16px;"></i>
+                                </button>
+                                {% endif %}
                             {% else %}
-                            <span style="color: var(--text-muted); font-size: 0.75rem;">Mês Fechado</span>
+                                <i data-lucide="check-circle" style="color: var(--success); width: 18px;" title="Pago"></i>
                             {% endif %}
-                        {% else %}
-                        <i data-lucide="check-circle" style="color: var(--success); width: 18px;"></i>
-                        {% endif %}
+
+                            {% if lancamento.comprovante %}
+                                <a href="{{ lancamento.comprovante.url }}" target="_blank" class="btn" style="padding: 0.35rem; background-color: #f0fdf4; color: #166534; border: 1px solid #dcfce7; border-radius: 6px; line-height: 0;" title="Ver Comprovante">
+                                    <i data-lucide="file-text" style="width: 16px; height: 16px;"></i>
+                                </a>
+                            {% endif %}
+
+                            {% if lancamento.ofx_transacoes.all %}
+                                <button onclick="openOfxDetailsModal('{{ lancamento.pk }}')" class="btn" style="padding: 0.35rem; background-color: #e0f2fe; color: #0369a1; border-radius: 6px; line-height: 0;" title="Ver Detalhes do Extrato">
+                                    <i data-lucide="eye" style="width: 16px; height: 16px;"></i>
+                                </button>
+                            {% endif %}
+
+                            {% if competencia.status == 'aberto' %}
+                                <a href="{% url 'core:lancamento_edit' lancamento.pk %}" class="btn" style="padding: 0.35rem; background-color: #f1f5f9; color: #64748b; border: 1px solid var(--border); border-radius: 6px; line-height: 0;" title="Editar">
+                                    <i data-lucide="edit-3" style="width: 16px; height: 16px;"></i>
+                                </a>
+                                
+                                <form action="{% url 'core:lancamento_delete' lancamento.pk %}" method="post" onsubmit="return confirm('Excluir este lançamento?')">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn" style="padding: 0.35rem; background-color: #fef2f2; color: #ef4444; border: 1px solid #fee2e2; border-radius: 6px; line-height: 0;" title="Excluir">
+                                        <i data-lucide="trash-2" style="width: 16px; height: 16px;"></i>
+                                    </button>
+                                </form>
+                            {% endif %}
+                        </div>
                     </td>
                 </tr>
                 {% empty %}
@@ -266,6 +327,40 @@
         </form>
     </div>
 </div>
+
+<!-- Modal Detalhes OFX -->
+<div id="modal-ofx-detalhes" class="modal">
+    <div class="modal-content" style="max-width: 700px;">
+        <a href="#" class="modal-close"><i data-lucide="x"></i></a>
+        <h2 style="margin-bottom: 0.5rem;">Detalhamento da Importação</h2>
+        <p id="ofx-detalhe-conta" style="color: var(--text-muted); font-size: 0.875rem; margin-bottom: 1.5rem;"></p>
+        
+        <div style="max-height: 400px; overflow-y: auto;">
+            <table style="font-size: 0.8rem;">
+                <thead>
+                    <tr>
+                        <th>Data</th>
+                        <th>Descrição</th>
+                        <th>Banco</th>
+                        <th style="text-align: right;">Valor</th>
+                    </tr>
+                </thead>
+                <tbody id="ofx-detalhe-corpo">
+                    <!-- Preenchido via JS -->
+                </tbody>
+                <tfoot>
+                    <tr style="background: var(--bg-main); font-weight: 700;">
+                        <td colspan="3" style="text-align: right;">Total Acumulado:</td>
+                        <td id="ofx-detalhe-total" style="text-align: right; color: var(--success);"></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+        <div style="margin-top: 1.5rem; text-align: right;">
+            <a href="#" class="btn btn-primary" style="background: var(--primary);">Fechar</a>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
@@ -283,6 +378,36 @@
         inputData.value = new Date().toISOString().split('T')[0];
         
         window.location.hash = 'modal-pagamento';
+    }
+
+    async function openOfxDetailsModal(pk) {
+        const modal = document.getElementById('modal-ofx-detalhes');
+        const corpo = document.getElementById('ofx-detalhe-corpo');
+        const contaLabel = document.getElementById('ofx-detalhe-conta');
+        const totalLabel = document.getElementById('ofx-detalhe-total');
+        
+        corpo.innerHTML = '<tr><td colspan="4" style="text-align: center;">Carregando...</td></tr>';
+        window.location.hash = 'modal-ofx-detalhes';
+        
+        try {
+            const response = await fetch(`/lancamento/${pk}/ofx-detalhes/`);
+            const data = await response.json();
+            
+            contaLabel.innerText = `Lançamento: ${data.lancamento}`;
+            totalLabel.innerText = `R$ ${data.total.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
+            
+            corpo.innerHTML = data.transacoes.map(t => `
+                <tr>
+                    <td>${t.data}</td>
+                    <td>${t.descricao}</td>
+                    <td>${t.banco}</td>
+                    <td style="text-align: right; font-weight: 600;">R$ ${t.valor.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
+                </tr>
+            `).join('');
+            
+        } catch (error) {
+            corpo.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--danger);">Erro ao carregar detalhes.</td></tr>';
+        }
     }
 </script>
 {% endblock %}

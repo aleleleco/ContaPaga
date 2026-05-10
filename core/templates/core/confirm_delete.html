@@ -1,0 +1,27 @@
+{% extends 'core/base.html' %}
+
+{% block title %}Excluir {{ type }} - ContaPaga{% endblock %}
+
+{% block content %}
+<div style="max-width: 500px; margin: 4rem auto; text-align: center;">
+    <div class="card" style="padding: 2.5rem;">
+        <div style="background-color: #fef2f2; color: #ef4444; width: 64px; height: 64px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 1.5rem;">
+            <i data-lucide="alert-triangle" style="width: 32px; height: 32px;"></i>
+        </div>
+        
+        <h2 style="font-size: 1.5rem; font-weight: 700; margin-bottom: 1rem;">Confirmar Exclusão</h2>
+        <p style="color: var(--text-muted); margin-bottom: 2rem;">
+            Você está prestes a excluir o {{ type }}: <br>
+            <strong style="color: var(--text-main);">{{ object }}</strong>
+        </p>
+        
+        <form method="post">
+            {% csrf_token %}
+            <div style="display: flex; gap: 1rem;">
+                <button type="submit" class="btn" style="flex: 1; justify-content: center; background-color: #ef4444; color: white;">Sim, Excluir</button>
+                <a href="{{ request.META.get.HTTP_REFERER|default:'/' }}" class="btn" style="flex: 1; justify-content: center; background-color: var(--bg-main); border: 1px solid var(--border);">Cancelar</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

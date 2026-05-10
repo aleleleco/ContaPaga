@@ -1,0 +1,42 @@
+
+def produtos_list(request):
+    produtos = ProdutoGarantia.objects.all().order_by('-data_aquisicao')
+    if request.method == 'POST':
+        form = ProdutoGarantiaForm(request.POST, request.FILES)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Produto cadastrado com sucesso!")
+            return redirect('core:produtos_list')
+    else:
+        form = ProdutoGarantiaForm()
+    
+    context = {
+        'produtos': produtos,
+        'form': form,
+    }
+    return render(request, 'core/produtos.html', context)
+
+def produto_detalhe(request, pk):
+    produto = get_object_or_404(ProdutoGarantia, pk=pk)
+    context = {
+        'produto': produto,
+    }
+    return render(request, 'core/produto_detalhe.html', context)
+
+def produto_edit(request, pk):
+    produto = get_object_or_404(ProdutoGarantia, pk=pk)
+    if request.method == 'POST':
+        form = ProdutoGarantiaForm(request.POST, request.FILES, instance=produto)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Produto atualizado com sucesso!")
+            return redirect('core:produtos_list')
+    else:
+        form = ProdutoGarantiaForm(instance=produto)
+    return render(request, 'core/produto_form.html', {'form': form, 'produto': produto, 'edit': True})
+
+def produto_delete(request, pk):
+    produto = get_object_or_404(ProdutoGarantia, pk=pk)
+    produto.delete()
+    messages.success(request, "Produto removido.")
+    return redirect('core:produtos_list')

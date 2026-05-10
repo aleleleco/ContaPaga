@@ -1,5 +1,15 @@
 from django import forms
-from .models import Conta, Lancamento, Categoria, Parcelamento
+from .models import Conta, Lancamento, Categoria, Parcelamento, AgentePagador, RegraImportacao, ProdutoGarantia
+
+class RegraImportacaoForm(forms.ModelForm):
+    class Meta:
+        model = RegraImportacao
+        fields = ['padrao', 'conta', 'nome_exibicao']
+        widgets = {
+            'padrao': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ex: UBER, IFOOD'}),
+            'conta': forms.Select(attrs={'class': 'form-control'}),
+            'nome_exibicao': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Opcional: Nome Amigável'}),
+        }
 
 class ContaForm(forms.ModelForm):
     class Meta:
@@ -29,12 +39,19 @@ class LancamentoForm(forms.ModelForm):
 
     class Meta:
         model = Lancamento
-        fields = ['conta', 'novo_nome_conta', 'nova_categoria', 'valor_previsto', 'vencimento', 'descricao']
+        fields = [
+            'conta', 'novo_nome_conta', 'nova_categoria', 
+            'valor_previsto', 'vencimento', 'descricao',
+            'valor_pago', 'data_pagamento', 'comprovante'
+        ]
         widgets = {
             'conta': forms.Select(attrs={'class': 'form-control'}),
             'valor_previsto': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
             'vencimento': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
             'descricao': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Opcional'}),
+            'valor_pago': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
+            'data_pagamento': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+            'comprovante': forms.FileInput(attrs={'class': 'form-control'}),
         }
 
     def __init__(self, *args, **kwargs):
@@ -70,13 +87,41 @@ class AgentePagadorForm(forms.ModelForm):
 class ParcelamentoModelForm(forms.ModelForm):
     class Meta:
         model = Parcelamento
-        fields = ['nome', 'categoria', 'valor_total', 'valor_parcela', 'total_parcelas', 'data_inicio', 'observacao']
+        fields = [
+            'nome', 'categoria', 'valor_total', 'valor_parcela', 
+            'valor_entrada', 'valor_parcela_final',
+            'total_parcelas', 'data_inicio', 'observacao', 'boleto'
+        ]
         widgets = {
             'nome': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ex: Notebook Gamer'}),
             'categoria': forms.Select(attrs={'class': 'form-control'}),
             'valor_total': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
             'valor_parcela': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
+            'valor_entrada': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
+            'valor_parcela_final': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
             'total_parcelas': forms.NumberInput(attrs={'class': 'form-control'}),
             'data_inicio': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
             'observacao': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
+            'boleto': forms.FileInput(attrs={'class': 'form-control'}),
+        }
+
+class ProdutoGarantiaForm(forms.ModelForm):
+    class Meta:
+        model = ProdutoGarantia
+        fields = [
+            'nome', 'data_aquisicao', 'valor', 
+            'tempo_garantia', 'unidade_garantia',
+            'nota_fiscal', 'contrato_garantia',
+            'lancamento', 'parcelamento'
+        ]
+        widgets = {
+            'nome': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ex: Geladeira Frost Free'}),
+            'data_aquisicao': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+            'valor': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
+            'tempo_garantia': forms.NumberInput(attrs={'class': 'form-control'}),
+            'unidade_garantia': forms.Select(attrs={'class': 'form-control'}),
+            'nota_fiscal': forms.FileInput(attrs={'class': 'form-control'}),
+            'contrato_garantia': forms.FileInput(attrs={'class': 'form-control'}),
+            'lancamento': forms.Select(attrs={'class': 'form-control'}),
+            'parcelamento': forms.Select(attrs={'class': 'form-control'}),
         }

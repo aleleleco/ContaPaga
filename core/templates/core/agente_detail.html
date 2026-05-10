@@ -1,0 +1,292 @@
+{% extends 'core/base.html' %}
+
+{% block title %}Perfil do Agente - {{ agente.nome }}{% endblock %}
+{% block header_title %}Perfil do Agente: {{ agente.nome }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .profile-container {
+        max-width: 1000px;
+        margin: 0 auto;
+    }
+    .bank-card {
+        background: white;
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .bank-card:hover {
+        box-shadow: 0 10px 25px rgba(0,0,0,0.05);
+    }
+    .pix-list {
+        margin-top: 1rem;
+        padding-top: 1rem;
+        border-top: 1px dashed var(--border);
+    }
+    .pix-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.5rem 0.75rem;
+        background: var(--bg-main);
+        border-radius: 8px;
+        margin-bottom: 0.5rem;
+        font-size: 0.875rem;
+    }
+    .section-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.5rem;
+    }
+    .badge-salary {
+        background: #dcfce7;
+        color: #166534;
+        padding: 0.25rem 0.5rem;
+        border-radius: 6px;
+        font-size: 0.7rem;
+        font-weight: 700;
+        text-transform: uppercase;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="profile-container">
+    <div style="margin-bottom: 2rem;">
+        <a href="{% url 'core:configuracoes' %}" class="btn" style="color: var(--text-muted); padding-left: 0;">
+            <i data-lucide="arrow-left"></i> Voltar para Configurações
+        </a>
+    </div>
+
+    <!-- Dados Básicos -->
+    <div class="card" style="margin-bottom: 2rem; border-left: 4px solid var(--primary);">
+        <div class="section-header">
+            <h2 style="font-size: 1.25rem; font-weight: 700;">Dados do Agente</h2>
+            <a href="#modal-editar-agente" class="btn btn-primary btn-sm">
+                <i data-lucide="edit"></i> Editar Perfil
+            </a>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 2rem;">
+            <div>
+                <label style="font-size: 0.75rem; color: var(--text-muted); display: block;">Nome</label>
+                <span style="font-weight: 700; font-size: 1.125rem;">{{ agente.nome }}</span>
+            </div>
+            <div>
+                <label style="font-size: 0.75rem; color: var(--text-muted); display: block;">Salário Base</label>
+                <span style="font-weight: 700; font-size: 1.125rem; color: var(--success);">R$ {{ agente.salario|floatformat:2 }}</span>
+            </div>
+            <div>
+                <label style="font-size: 0.75rem; color: var(--text-muted); display: block;">Lançamentos</label>
+                <span style="font-weight: 700; font-size: 1.125rem;">{{ agente.lancamentos.count }}</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Contas Bancárias -->
+    <div class="section-header">
+        <h2 style="font-size: 1.25rem; font-weight: 700;">Contas Bancárias</h2>
+        <a href="#modal-nova-conta-bancaria" class="btn btn-primary">
+            <i data-lucide="plus-circle"></i> Adicionar Banco
+        </a>
+    </div>
+
+    {% for conta in contas_bancarias %}
+    <div class="bank-card">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+            <div style="display: flex; gap: 1rem; align-items: center;">
+                <div style="width: 48px; height: 48px; background: var(--bg-main); border-radius: 12px; display: flex; align-items: center; justify-content: center; color: var(--primary);">
+                    <i data-lucide="landmark" style="width: 24px; height: 24px;"></i>
+                </div>
+                <div>
+                    <h3 style="font-weight: 700; font-size: 1.125rem;">{{ conta.banco }}</h3>
+                    <div style="font-size: 0.875rem; color: var(--text-muted);">
+                        Ag: {{ conta.agencia|default:"-" }} | CC: {{ conta.conta }} | 
+                        <span style="text-transform: capitalize;">{{ conta.get_tipo_display }}</span>
+                        {% if conta.considerar_como_salario %}
+                        <span class="badge-salary" style="margin-left: 0.5rem;">Conta Salário</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            <div style="display: flex; gap: 0.5rem;">
+                <a href="javascript:void(0)" onclick="openEditBankModal('{{ conta.pk }}', '{{ conta.banco }}', '{{ conta.agencia|default:'' }}', '{{ conta.conta }}', '{{ conta.tipo }}', {{ conta.considerar_como_salario|yesno:'true,false' }})" class="btn" style="color: var(--primary); padding: 0.5rem;"><i data-lucide="edit-2" style="width: 18px;"></i></a>
+                <a href="{% url 'core:conta_bancaria_delete' conta.pk %}" class="btn" style="color: var(--danger); padding: 0.5rem;" onclick="return confirm('Excluir esta conta bancária?')"><i data-lucide="trash-2" style="width: 18px;"></i></a>
+            </div>
+        </div>
+
+        <div class="pix-list">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                <h4 style="font-size: 0.875rem; font-weight: 700; color: var(--text-muted);">Chaves PIX</h4>
+                <a href="javascript:void(0)" onclick="openNewPixModal('{{ conta.pk }}', '{{ conta.banco }}')" style="font-size: 0.75rem; color: var(--primary); font-weight: 600; text-decoration: none;">+ Adicionar Chave</a>
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 0.75rem;">
+                {% for pix in conta.chaves_pix.all %}
+                <div class="pix-item">
+                    <span><strong>{{ pix.get_tipo_display }}:</strong> {{ pix.chave }}</span>
+                    <a href="{% url 'core:chave_pix_delete' pix.pk %}" style="color: var(--danger);"><i data-lucide="x" style="width: 14px;"></i></a>
+                </div>
+                {% empty %}
+                <p style="font-size: 0.875rem; color: var(--text-muted); font-style: italic;">Nenhuma chave PIX cadastrada.</p>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% empty %}
+    <div class="card" style="text-align: center; padding: 4rem 2rem;">
+        <i data-lucide="info" style="width: 48px; height: 48px; color: var(--text-muted); margin-bottom: 1rem;"></i>
+        <h3 style="color: var(--text-muted);">Nenhuma conta bancária vinculada.</h3>
+        <p style="color: var(--text-muted); font-size: 0.875rem;">Adicione uma conta para gerenciar as importações OFX deste agente.</p>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Modais -->
+
+<!-- Editar Agente -->
+<div id="modal-editar-agente" class="modal">
+    <div class="modal-content">
+        <a href="#" class="modal-close"><i data-lucide="x"></i></a>
+        <h2 style="margin-bottom: 1.5rem;">Editar Agente</h2>
+        <form action="{% url 'core:agente_edit' agente.pk %}" method="post">
+            {% csrf_token %}
+            {% for field in form_agente %}
+            <div class="form-group">
+                <label>{{ field.label }}</label>
+                {{ field }}
+            </div>
+            {% endfor %}
+            <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 1rem; justify-content: center;">Salvar Alterações</button>
+        </form>
+    </div>
+</div>
+
+<!-- Nova Conta Bancária -->
+<div id="modal-nova-conta-bancaria" class="modal">
+    <div class="modal-content">
+        <a href="#" class="modal-close"><i data-lucide="x"></i></a>
+        <h2 style="margin-bottom: 1.5rem;">Adicionar Conta Bancária</h2>
+        <form action="{% url 'core:conta_bancaria_create' agente.pk %}" method="post">
+            {% csrf_token %}
+            <div class="form-group">
+                <label>Banco</label>
+                <input type="text" name="banco" class="form-control" placeholder="Ex: Nubank, Bradesco..." required>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 1rem;">
+                <div class="form-group">
+                    <label>Agência</label>
+                    <input type="text" name="agencia" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label>Número da Conta</label>
+                    <input type="text" name="conta" class="form-control" required>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Tipo de Conta</label>
+                <select name="tipo" class="form-control">
+                    <option value="corrente">Conta Corrente</option>
+                    <option value="poupanca">Conta Poupança</option>
+                    <option value="investimento">Conta Investimento</option>
+                </select>
+            </div>
+            <div class="form-group" style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                <input type="checkbox" name="considerar_como_salario" id="check-salario" style="width: 18px; height: 18px;">
+                <label for="check-salario" style="margin: 0;">Considerar como Conta Salário</label>
+            </div>
+            <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 1rem; justify-content: center;">Cadastrar Banco</button>
+        </form>
+    </div>
+</div>
+
+<!-- Editar Conta Bancária -->
+<div id="modal-editar-banco" class="modal">
+    <div class="modal-content">
+        <a href="#" class="modal-close"><i data-lucide="x"></i></a>
+        <h2 style="margin-bottom: 1.5rem;">Editar Conta Bancária</h2>
+        <form id="form-edit-banco" action="" method="post">
+            {% csrf_token %}
+            <div class="form-group">
+                <label>Banco</label>
+                <input type="text" name="banco" id="edit-banco-nome" class="form-control" required>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 1rem;">
+                <div class="form-group">
+                    <label>Agência</label>
+                    <input type="text" name="agencia" id="edit-banco-agencia" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label>Número da Conta</label>
+                    <input type="text" name="conta" id="edit-banco-conta" class="form-control" required>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Tipo de Conta</label>
+                <select name="tipo" id="edit-banco-tipo" class="form-control">
+                    <option value="corrente">Conta Corrente</option>
+                    <option value="poupanca">Conta Poupança</option>
+                    <option value="investimento">Conta Investimento</option>
+                </select>
+            </div>
+            <div class="form-group" style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                <input type="checkbox" name="considerar_como_salario" id="edit-banco-salario" style="width: 18px; height: 18px;">
+                <label for="edit-banco-salario" style="margin: 0;">Considerar como Conta Salário</label>
+            </div>
+            <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 1rem; justify-content: center;">Salvar Alterações</button>
+        </form>
+    </div>
+</div>
+
+<!-- Nova Chave PIX -->
+<div id="modal-nova-pix" class="modal">
+    <div class="modal-content">
+        <a href="#" class="modal-close"><i data-lucide="x"></i></a>
+        <h2 style="margin-bottom: 0.5rem;">Adicionar Chave PIX</h2>
+        <p id="pix-banco-label" style="font-size: 0.875rem; color: var(--text-muted); margin-bottom: 1.5rem;"></p>
+        <form id="form-nova-pix" action="" method="post">
+            {% csrf_token %}
+            <div class="form-group">
+                <label>Tipo de Chave</label>
+                <select name="tipo" class="form-control" required>
+                    <option value="cpf">CPF</option>
+                    <option value="cnpj">CNPJ</option>
+                    <option value="email">E-mail</option>
+                    <option value="telefone">Telefone</option>
+                    <option value="aleatoria">Chave Aleatória</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Chave</label>
+                <input type="text" name="chave" class="form-control" placeholder="Digite a chave..." required>
+            </div>
+            <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 1rem; justify-content: center;">Adicionar Chave</button>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function openEditBankModal(pk, banco, agencia, conta, tipo, isSalario) {
+        const form = document.getElementById('form-edit-banco');
+        form.action = `/banco/${pk}/editar/`;
+        
+        document.getElementById('edit-banco-nome').value = banco;
+        document.getElementById('edit-banco-agencia').value = agencia;
+        document.getElementById('edit-banco-conta').value = conta;
+        document.getElementById('edit-banco-tipo').value = tipo;
+        document.getElementById('edit-banco-salario').checked = isSalario;
+        
+        window.location.hash = 'modal-editar-banco';
+    }
+
+    function openNewPixModal(contaId, bancoNome) {
+        const form = document.getElementById('form-nova-pix');
+        form.action = `/pix/novo/${contaId}/`;
+        document.getElementById('pix-banco-label').innerText = `Vinculando ao banco: ${bancoNome}`;
+        window.location.hash = 'modal-nova-pix';
+    }
+</script>
+{% endblock %}
